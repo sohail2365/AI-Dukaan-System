@@ -12,6 +12,8 @@ from inventory import (get_item_price, get_item_by_id, update_stock, update_stoc
 from ai_parser import parse_entry, parse_purchase, parse_multi_entry
 from database import setup_database, get_connection
 from auth import verify_token, register_shop, login_shop, reset_password
+from whatsapp import (build_whatsapp_payload, compose_entry_receipt,
+                      compose_payment_receipt, compose_reminder, AUTO_SEND_ENABLED)
 
 app = FastAPI(title="Dukaan AI", version="1.0")
 
@@ -120,6 +122,31 @@ def get_shop_id(authorization: Optional[str] = None) -> Optional[int]:
         return None
     return payload.get("shop_id")
 
+def get_customer_phone_and_baaki(customer_name: str, shop_id: int):
+    """Customer ka phone + current total baaki nikalta hai (WhatsApp ke liye)."""
+    with get_connection() as conn:
+        row = conn.execute(
+            text("""
+                SELECT c.customer_id, c.phone, COALESCE(SUM(k.total), 0)
+                FROM customers c
+                LEFT JOIN khaata k ON k.customer_id = c.customer_id
+                WHERE LOWER(c.name) = :name AND c.shop_id = :shop_id
+                GROUP BY c.customer_id, c.phone
+            """),
+            {"name": customer_name.lower().strip(), "shop_id": shop_id}
+        ).fetchone()
+    if not row:
+        return None, 0
+    return row[1], row[2]
+
+def get_shop_name(shop_id: int) -> str:
+    with get_connection() as conn:
+        row = conn.execute(
+            text("SELECT shop_name FROM shops WHERE shop_id = :sid"),
+            {"sid": shop_id}
+        ).fetchone()
+    return row[0] if row else "Dukaan AI"
+
 # ---- Home ----
 @app.get("/")
 def home():
@@ -213,7 +240,10 @@ def save_entry(req: SingleEntrySaveRequest, authorization: Optional[str] = Heade
             )
             conn.commit()
         print(f"Payment saved: {data['customer'].title()} - Rs. {data['price']}")
-        return {"success": True, "type": "payment", "data": data}
+        phone, baaki = get_customer_phone_and_baaki(data["customer"], shop_id)
+        wa_msg = compose_payment_receipt(get_shop_name(shop_id), data["customer"], data["price"], baaki)
+        return {"success": True, "type": "payment", "data": data,
+                "whatsapp": build_whatsapp_payload(phone, wa_msg)}
 
     if not data.get("item"):
         return {"error": "Item missing hai"}
@@ -245,7 +275,16 @@ def save_entry(req: SingleEntrySaveRequest, authorization: Optional[str] = Heade
         elif req.manual_price == 0:
             update_stock(data["item"], data["quantity"], shop_id)
 
-    return {"success": True, "type": "udhaar", "data": data}
+    entry_total = round(data["quantity"] * data["price"], 2)
+    phone, baaki = get_customer_phone_and_baaki(data["customer"], shop_id)
+    wa_msg = compose_entry_receipt(
+        get_shop_name(shop_id), data["customer"],
+        [{"item": data["item"], "quantity": data["quantity"],
+          "price": data["price"], "total": entry_total}],
+        entry_total, baaki
+    )
+    return {"success": True, "type": "udhaar", "data": data,
+            "whatsapp": build_whatsapp_payload(phone, wa_msg)}
 
 @app.put("/entry/edit")
 def edit_entry(req: EntryEditRequest, authorization: Optional[str] = Header(None)):
@@ -689,10 +728,203 @@ def save_multi(req: MultiEntrySaveRequest, authorization: Optional[str] = Header
     grand_total = round(sum(i["total"] for i in saved_items), 2)
     print(f"Multi-entry saved: {customer_name} - {len(saved_items)} items - Rs. {grand_total}")
 
+    whatsapp = None
+    if saved_items:
+        phone, baaki = get_customer_phone_and_baaki(customer_name, shop_id)
+        wa_msg = compose_entry_receipt(get_shop_name(shop_id), customer_name,
+                                       saved_items, grand_total, baaki)
+        whatsapp = build_whatsapp_payload(phone, wa_msg)
+
     return {
         "success": True,
         "customer": customer_name,
         "items": saved_items,
         "grand_total": grand_total,
-        "items_saved": len(saved_items)
+        "items_saved": len(saved_items),
+        "whatsapp": whatsapp
     }
+
+# ---- WhatsApp ----
+class ReminderRequest(BaseModel):
+    customer: str
+
+class BulkReminderRequest(BaseModel):
+    customers: List[str] = []   # khaali = sab jinke baaki > 0
+    min_baaki: float = 1
+
+@app.post("/whatsapp/reminder")
+def whatsapp_reminder(req: ReminderRequest, authorization: Optional[str] = Header(None)):
+    shop_id = get_shop_id(authorization)
+    if not shop_id:
+        return {"error": "Login zaroori hai"}
+    phone, baaki = get_customer_phone_and_baaki(req.customer, shop_id)
+    if phone is None and baaki == 0:
+        return {"error": f"'{req.customer}' nahi mila"}
+    msg = compose_reminder(get_shop_name(shop_id), req.customer, baaki)
+    return {"success": True, "customer": req.customer, "baaki": baaki,
+            "whatsapp": build_whatsapp_payload(phone, msg)}
+
+@app.post("/whatsapp/bulk-reminders")
+def whatsapp_bulk_reminders(req: BulkReminderRequest, authorization: Optional[str] = Header(None)):
+    """Group messaging: selected customers (ya sab jinke baaki hai) ke liye
+    ready-made reminder links. Cloud API configured ho toh auto-send bhi."""
+    shop_id = get_shop_id(authorization)
+    if not shop_id:
+        return {"error": "Login zaroori hai"}
+    shop_name = get_shop_name(shop_id)
+
+    with get_connection() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT c.name, c.phone, COALESCE(SUM(k.total), 0) as baaki
+                FROM customers c
+                LEFT JOIN khaata k ON k.customer_id = c.customer_id
+                WHERE c.shop_id = :shop_id
+                GROUP BY c.customer_id, c.name, c.phone
+                HAVING COALESCE(SUM(k.total), 0) >= :min_baaki
+                ORDER BY baaki DESC
+            """),
+            {"shop_id": shop_id, "min_baaki": req.min_baaki}
+        ).fetchall()
+
+    selected = {c.lower().strip() for c in req.customers} if req.customers else None
+    results = []
+    for name, phone, baaki in rows:
+        if selected is not None and name.lower() not in selected:
+            continue
+        msg = compose_reminder(shop_name, name, baaki)
+        payload = build_whatsapp_payload(phone, msg)
+        results.append({
+            "customer": name.title(), "phone": phone, "baaki": baaki,
+            "link": payload["link"], "phone_valid": payload["phone_valid"],
+            "auto_sent": payload["auto_sent"],
+        })
+    return {"success": True, "count": len(results),
+            "auto_send_enabled": AUTO_SEND_ENABLED, "reminders": results}
+
+# ---- Reports / Dashboard ----
+@app.get("/reports/dashboard")
+def reports_dashboard(authorization: Optional[str] = Header(None)):
+    shop_id = get_shop_id(authorization)
+    if not shop_id:
+        return {"error": "Login zaroori hai"}
+    with get_connection() as conn:
+        today_sale = conn.execute(text("""
+            SELECT COALESCE(SUM(k.total), 0) FROM khaata k
+            JOIN customers c ON c.customer_id = k.customer_id
+            WHERE c.shop_id = :sid AND k.date = CURRENT_DATE AND k.item_name != 'PAYMENT'
+        """), {"sid": shop_id}).fetchone()[0]
+        today_payments = conn.execute(text("""
+            SELECT COALESCE(SUM(-k.total), 0) FROM khaata k
+            JOIN customers c ON c.customer_id = k.customer_id
+            WHERE c.shop_id = :sid AND k.date = CURRENT_DATE AND k.item_name = 'PAYMENT'
+        """), {"sid": shop_id}).fetchone()[0]
+        month_sale = conn.execute(text("""
+            SELECT COALESCE(SUM(k.total), 0) FROM khaata k
+            JOIN customers c ON c.customer_id = k.customer_id
+            WHERE c.shop_id = :sid AND k.date >= date_trunc('month', CURRENT_DATE)
+              AND k.item_name != 'PAYMENT'
+        """), {"sid": shop_id}).fetchone()[0]
+        month_payments = conn.execute(text("""
+            SELECT COALESCE(SUM(-k.total), 0) FROM khaata k
+            JOIN customers c ON c.customer_id = k.customer_id
+            WHERE c.shop_id = :sid AND k.date >= date_trunc('month', CURRENT_DATE)
+              AND k.item_name = 'PAYMENT'
+        """), {"sid": shop_id}).fetchone()[0]
+        total_baaki = conn.execute(text("""
+            SELECT COALESCE(SUM(k.total), 0) FROM khaata k
+            JOIN customers c ON c.customer_id = k.customer_id
+            WHERE c.shop_id = :sid
+        """), {"sid": shop_id}).fetchone()[0]
+        customer_count = conn.execute(
+            text("SELECT COUNT(*) FROM customers WHERE shop_id = :sid"),
+            {"sid": shop_id}).fetchone()[0]
+        top_baaki = conn.execute(text("""
+            SELECT c.name, c.phone, COALESCE(SUM(k.total), 0) as baaki
+            FROM customers c LEFT JOIN khaata k ON k.customer_id = c.customer_id
+            WHERE c.shop_id = :sid
+            GROUP BY c.customer_id, c.name, c.phone
+            HAVING COALESCE(SUM(k.total), 0) > 0
+            ORDER BY baaki DESC LIMIT 5
+        """), {"sid": shop_id}).fetchall()
+        low_stock = conn.execute(text("""
+            SELECT item_name, stock, reorder_level FROM inventory
+            WHERE shop_id = :sid AND stock <= reorder_level
+            ORDER BY stock ASC LIMIT 10
+        """), {"sid": shop_id}).fetchall()
+        month_purchases = conn.execute(text("""
+            SELECT COALESCE(SUM(total_cost), 0) FROM purchases
+            WHERE shop_id = :sid AND date >= date_trunc('month', CURRENT_DATE)
+        """), {"sid": shop_id}).fetchone()[0]
+    return {
+        "today_sale": today_sale,
+        "today_payments": today_payments,
+        "month_sale": month_sale,
+        "month_payments": month_payments,
+        "month_purchases": month_purchases,
+        "total_baaki": total_baaki,
+        "customer_count": customer_count,
+        "top_baaki": [{"name": r[0].title(), "phone": r[1], "baaki": r[2]} for r in top_baaki],
+        "low_stock": [{"item": r[0].title(), "stock": r[1], "reorder_level": r[2]} for r in low_stock],
+    }
+
+# ---- CSV Export (backup) ----
+from fastapi.responses import PlainTextResponse
+import csv
+import io
+
+def _csv_response(rows, headers, filename):
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return PlainTextResponse(
+        buf.getvalue(), media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@app.get("/export/customers")
+def export_customers(authorization: Optional[str] = Header(None)):
+    shop_id = get_shop_id(authorization)
+    if not shop_id:
+        return {"error": "Login zaroori hai"}
+    with get_connection() as conn:
+        rows = conn.execute(text("""
+            SELECT c.name, c.phone, COALESCE(SUM(k.total), 0), COUNT(k.id)
+            FROM customers c LEFT JOIN khaata k ON k.customer_id = c.customer_id
+            WHERE c.shop_id = :sid
+            GROUP BY c.customer_id, c.name, c.phone ORDER BY c.name
+        """), {"sid": shop_id}).fetchall()
+    return _csv_response(
+        [(r[0].title(), r[1], r[2], r[3]) for r in rows],
+        ["Customer", "Phone", "Total Baaki", "Entries"], "customers.csv")
+
+@app.get("/export/khaata")
+def export_khaata(authorization: Optional[str] = Header(None)):
+    shop_id = get_shop_id(authorization)
+    if not shop_id:
+        return {"error": "Login zaroori hai"}
+    with get_connection() as conn:
+        rows = conn.execute(text("""
+            SELECT c.name, k.date, k.item_name, k.quantity, k.price_per_item, k.total
+            FROM khaata k JOIN customers c ON c.customer_id = k.customer_id
+            WHERE c.shop_id = :sid ORDER BY c.name, k.date
+        """), {"sid": shop_id}).fetchall()
+    return _csv_response(
+        [(r[0].title(), str(r[1]), r[2].title(), r[3], r[4], r[5]) for r in rows],
+        ["Customer", "Date", "Item", "Quantity", "Price", "Total"], "khaata.csv")
+
+@app.get("/export/inventory")
+def export_inventory(authorization: Optional[str] = Header(None)):
+    shop_id = get_shop_id(authorization)
+    if not shop_id:
+        return {"error": "Login zaroori hai"}
+    with get_connection() as conn:
+        rows = conn.execute(text("""
+            SELECT item_name, category, sale_price, purchase_rate, stock, reorder_level
+            FROM inventory WHERE shop_id = :sid ORDER BY item_name
+        """), {"sid": shop_id}).fetchall()
+    return _csv_response(
+        [(r[0].title(), r[1], r[2], r[3], r[4], r[5]) for r in rows],
+        ["Item", "Category", "Sale Price", "Purchase Rate", "Stock", "Reorder Level"],
+        "inventory.csv")

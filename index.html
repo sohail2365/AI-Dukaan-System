@@ -34,7 +34,7 @@ body{font-family:'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;}
 .app.show{display:flex;}
 
 /* Header */
-.topbar{background:#1e293b;color:white;padding:0 20px;height:60px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,0.3);}
+.topbar{background:#7591be;color:white;padding:0 20px;height:60px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,0.3);}
 .topbar-left{display:flex;align-items:center;gap:14px;}
 .topbar-logo{font-size:18px;font-weight:700;color:white;}
 .topbar-logo span{color:#818cf8;}
@@ -195,6 +195,22 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
 .page-title{font-size:20px;font-weight:700;color:#1e293b;}
 .page-subtitle{font-size:13px;color:#64748b;margin-top:2px;}
+
+/* ---- WhatsApp + Reports ---- */
+.wa-banner{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#075e54;color:#fff;padding:12px 16px;border-radius:12px;display:none;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,0.3);z-index:9999;max-width:90vw;}
+.wa-banner.show{display:flex;}
+.wa-banner a{background:#25d366;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:700;white-space:nowrap;font-size:14px;}
+.wa-banner .wa-close{cursor:pointer;font-size:18px;padding:0 4px;color:#a7d8cf;}
+.wa-btn{background:#25d366;border:none;color:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:13px;}
+.wa-btn:disabled{background:#94a3b8;cursor:default;}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;}
+.stat-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;}
+.stat-card .stat-label{font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
+.stat-card .stat-value{font-size:22px;font-weight:800;color:#1e293b;margin-top:4px;}
+.stat-card.green .stat-value{color:#16a34a;}
+.stat-card.red .stat-value{color:#dc2626;}
+.stat-card.blue .stat-value{color:#2563eb;}
+@media(prefers-color-scheme:dark){.stat-card{background:#fff;}}
 </style>
 </head>
 <body>
@@ -281,6 +297,9 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
       <div class="nav-item" onclick="showPage('customers');getAllCustomers()" id="nav-customers">
         <span class="nav-icon">👥</span><span>Sab Customers</span>
       </div>
+      <div class="nav-item" onclick="showPage('whatsapp');loadBulkReminders()" id="nav-whatsapp">
+        <span class="nav-icon">📱</span><span>WhatsApp Reminders</span>
+      </div>
 
       <div class="nav-divider"></div>
       <div class="nav-section">Stock</div>
@@ -298,6 +317,12 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
       </div>
       <div class="nav-item" onclick="showPage('purchase-history');getPurchaseHistory()" id="nav-purchase-history">
         <span class="nav-icon">📋</span><span>Purchase History</span>
+      </div>
+
+      <div class="nav-divider"></div>
+      <div class="nav-section">Reports</div>
+      <div class="nav-item" onclick="showPage('reports');loadDashboard()" id="nav-reports">
+        <span class="nav-icon">📊</span><span>Dashboard</span>
       </div>
     </div>
 
@@ -560,9 +585,73 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
         </div>
       </div>
 
+
+      <!-- WhatsApp Reminders -->
+      <div class="page" id="page-whatsapp">
+        <div class="page-header">
+          <div>
+            <div class="page-title">📱 WhatsApp Reminders</div>
+            <div class="page-subtitle">Jin customers ka baaki hai unhe yaad dehani bhejo — akela ya group mein</div>
+          </div>
+          <button class="btn-outline" onclick="loadBulkReminders()">🔄 Refresh</button>
+        </div>
+        <div class="card">
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+            <label style="font-size:13px;color:#64748b;">Minimum baaki:</label>
+            <input type="number" id="wa-min-baaki" value="1" style="width:100px;padding:6px;border:1px solid #e2e8f0;border-radius:6px;" onchange="loadBulkReminders()">
+            <button class="wa-btn" style="padding:8px 14px;" onclick="sendAllReminders()">📤 Sab ko bhejo (ek ek karke)</button>
+            <span id="wa-auto-status" style="font-size:12px;color:#64748b;"></span>
+          </div>
+          <div class="entry-row entry-header"><span>Customer</span><span>Phone</span><span>Baaki</span><span>Action</span></div>
+          <div id="wa-reminder-list"></div>
+        </div>
+      </div>
+
+      <!-- Reports Dashboard -->
+      <div class="page" id="page-reports">
+        <div class="page-header">
+          <div>
+            <div class="page-title">📊 Dashboard</div>
+            <div class="page-subtitle">Aaj aur is mahine ka poora hisaab</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-outline" onclick="exportCSV('khaata')">⬇️ Khaata CSV</button>
+            <button class="btn-outline" onclick="exportCSV('customers')">⬇️ Customers CSV</button>
+            <button class="btn-outline" onclick="exportCSV('inventory')">⬇️ Inventory CSV</button>
+            <button class="btn-outline" onclick="loadDashboard()">🔄</button>
+          </div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card blue"><div class="stat-label">Aaj ki Sale (udhaar)</div><div class="stat-value" id="stat-today-sale">—</div></div>
+          <div class="stat-card green"><div class="stat-label">Aaj ki Payments</div><div class="stat-value" id="stat-today-pay">—</div></div>
+          <div class="stat-card blue"><div class="stat-label">Mahine ki Sale</div><div class="stat-value" id="stat-month-sale">—</div></div>
+          <div class="stat-card green"><div class="stat-label">Mahine ki Payments</div><div class="stat-value" id="stat-month-pay">—</div></div>
+          <div class="stat-card"><div class="stat-label">Mahine ki Khareedari</div><div class="stat-value" id="stat-month-purchase">—</div></div>
+          <div class="stat-card red"><div class="stat-label">Total Baaki (sab)</div><div class="stat-value" id="stat-total-baaki">—</div></div>
+          <div class="stat-card"><div class="stat-label">Total Customers</div><div class="stat-value" id="stat-customers">—</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="card">
+            <h3 style="margin:0 0 10px;font-size:15px;">🔴 Sab se zyada baaki</h3>
+            <div id="top-baaki-list" style="font-size:14px;"></div>
+          </div>
+          <div class="card">
+            <h3 style="margin:0 0 10px;font-size:15px;">⚠️ Low Stock Items</h3>
+            <div id="low-stock-list" style="font-size:14px;"></div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- end main-content -->
   </div><!-- end app-body -->
 </div><!-- end app -->
+
+<!-- WhatsApp send banner -->
+<div class="wa-banner" id="wa-banner">
+  <span id="wa-banner-text">Receipt tayyar hai</span>
+  <a id="wa-banner-link" href="#" target="_blank" rel="noopener" onclick="hideWaBanner()">📱 WhatsApp bhejein</a>
+  <span class="wa-close" onclick="hideWaBanner()">✕</span>
+</div>
 
 <!-- =============== MODALS =============== -->
 
@@ -936,6 +1025,7 @@ async function saveEntry() {
     const data = await res.json();
     if (data.error) { showToast(data.error,'error'); return; }
     showToast(`${data.type==='payment'?'Payment':'Entry'}: ${data.data?.customer} - ${data.data?.item} save ho gaya!`);
+    showWhatsAppPrompt(data.whatsapp, data.type==='payment' ? 'Payment receipt tayyar hai —' : 'Receipt tayyar hai —');
     cancelEntry();
   } catch(e) { showToast('Save nahi hua','error'); }
 }
@@ -1095,6 +1185,7 @@ async function saveMultiEntry() {
     if (data.error) { showToast(data.error,'error'); return; }
     multiParsedData.customer = customer;
     showToast(`${data.items_saved} items save! Total: Rs. ${data.grand_total}`);
+    showWhatsAppPrompt(data.whatsapp, 'Bill receipt tayyar hai —');
     printBill();
     cancelMultiEntry();
   } catch(e) { showToast('Save nahi hua','error'); }
@@ -1232,6 +1323,7 @@ async function getAllCustomers() {
         <span style="color:#64748b;">${c.total_entries} entries</span>
         <span class="action-btns">
           <span style="font-weight:700;color:${c.total_baaki>0?'#dc2626':'#16a34a'};">Rs. ${c.total_baaki}</span>
+          <button class="wa-btn" onclick="sendReminder('${c.name.toLowerCase()}')" title="WhatsApp reminder">📱</button>
           <button class="edit-btn" onclick="editCustomer('${c.name}','${c.phone}')">✏️</button>
           <button class="del-btn" onclick="deleteCustomer('${c.name}')">🗑️</button>
         </span>
@@ -1516,6 +1608,121 @@ async function deletePurchase(id) {
     showToast('🗑️ Purchase delete ho gaya!');
     getPurchaseHistory();
   } catch(e){showToast('Delete nahi hua','error');}
+}
+
+// ================= WhatsApp + Reports =================
+let waBannerTimer = null;
+
+function showWhatsAppPrompt(wa, label) {
+  if (!wa || !wa.link) return;
+  if (wa.auto_sent) { showToast('📱 WhatsApp message customer ko bhej diya gaya!'); return; }
+  const banner = document.getElementById('wa-banner');
+  document.getElementById('wa-banner-text').textContent = label || 'Receipt tayyar hai —';
+  document.getElementById('wa-banner-link').href = wa.link;
+  banner.classList.add('show');
+  clearTimeout(waBannerTimer);
+  waBannerTimer = setTimeout(hideWaBanner, 30000);
+  if (!wa.phone_valid) {
+    document.getElementById('wa-banner-text').textContent = 'Phone number nahi mila — contact khud select karna hoga';
+  }
+}
+function hideWaBanner() {
+  document.getElementById('wa-banner').classList.remove('show');
+}
+
+async function sendReminder(name) {
+  try {
+    const res = await apiFetch('/whatsapp/reminder', {method:'POST', body:JSON.stringify({customer:name})});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    if (data.whatsapp.auto_sent) { showToast(`📱 ${name} ko reminder bhej diya!`); return; }
+    window.open(data.whatsapp.link, '_blank');
+  } catch(e) { showToast('Reminder nahi bana','error'); }
+}
+
+let waReminders = [];
+async function loadBulkReminders() {
+  const minBaaki = parseFloat(document.getElementById('wa-min-baaki')?.value) || 1;
+  try {
+    const res = await apiFetch('/whatsapp/bulk-reminders', {method:'POST', body:JSON.stringify({min_baaki:minBaaki})});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    waReminders = data.reminders;
+    document.getElementById('wa-auto-status').textContent =
+      data.auto_send_enabled ? '✅ Auto-send ON (Cloud API)' : 'ℹ️ Har button WhatsApp kholega — free mode';
+    document.getElementById('wa-reminder-list').innerHTML = waReminders.map((r,i) => `
+      <div class="entry-row" id="wa-row-${i}">
+        <span style="font-weight:600;">${r.customer}</span>
+        <span style="color:#64748b;">${r.phone_valid ? r.phone : '⚠️ ' + (r.phone || 'no phone')}</span>
+        <span style="font-weight:700;color:#dc2626;">Rs. ${r.baaki}</span>
+        <span>${r.auto_sent
+          ? '<span style="color:#16a34a;font-weight:600;">✅ Bhej diya</span>'
+          : `<button class="wa-btn" onclick="openReminder(${i})" id="wa-btn-${i}">📱 Bhejein</button>`}</span>
+      </div>`).join('') || '<div style="padding:16px;color:#64748b;">Koi customer nahi jiska baaki Rs. '+minBaaki+' se zyada ho</div>';
+  } catch(e) { showToast('List load nahi hui','error'); }
+}
+
+function openReminder(i) {
+  const r = waReminders[i];
+  if (!r) return;
+  window.open(r.link, '_blank');
+  const btn = document.getElementById(`wa-btn-${i}`);
+  if (btn) { btn.disabled = true; btn.textContent = '✅ Khula'; }
+}
+
+let waQueueIndex = 0;
+function sendAllReminders() {
+  // wa.me ek waqt mein ek hi chat khol sakta hai — is liye queue:
+  // har click pe agla customer khulta hai
+  const pending = waReminders.map((r,i)=>i).filter(i => {
+    const btn = document.getElementById(`wa-btn-${i}`);
+    return btn && !btn.disabled;
+  });
+  if (!pending.length) { showToast('Sab ko bhej diya gaya!'); return; }
+  openReminder(pending[0]);
+  if (pending.length > 1) {
+    showToast(`${pending.length - 1} aur baaki hain — WhatsApp se wapas aa kar dobara dabao`);
+  }
+}
+
+async function loadDashboard() {
+  try {
+    const res = await apiFetch('/reports/dashboard');
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    const rs = v => 'Rs. ' + (Number(v)||0).toLocaleString('en-PK');
+    document.getElementById('stat-today-sale').textContent = rs(data.today_sale);
+    document.getElementById('stat-today-pay').textContent = rs(data.today_payments);
+    document.getElementById('stat-month-sale').textContent = rs(data.month_sale);
+    document.getElementById('stat-month-pay').textContent = rs(data.month_payments);
+    document.getElementById('stat-month-purchase').textContent = rs(data.month_purchases);
+    document.getElementById('stat-total-baaki').textContent = rs(data.total_baaki);
+    document.getElementById('stat-customers').textContent = data.customer_count;
+    document.getElementById('top-baaki-list').innerHTML = data.top_baaki.map(c => `
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;">
+        <span style="cursor:pointer;color:#6366f1;" onclick="viewCustomer('${c.name.toLowerCase()}')">${c.name}</span>
+        <span><b style="color:#dc2626;">Rs. ${c.baaki}</b>
+        <button class="wa-btn" style="margin-left:8px;" onclick="sendReminder('${c.name.toLowerCase()}')">📱</button></span>
+      </div>`).join('') || '<div style="color:#64748b;">Koi baaki nahi 🎉</div>';
+    document.getElementById('low-stock-list').innerHTML = data.low_stock.map(i => `
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;">
+        <span>${i.item}</span><span style="color:${i.stock<=0?'#dc2626':'#d97706'};font-weight:700;">${i.stock} left</span>
+      </div>`).join('') || '<div style="color:#64748b;">Sab stock theek hai ✅</div>';
+  } catch(e) { showToast('Dashboard load nahi hua','error'); }
+}
+
+async function exportCSV(kind) {
+  try {
+    const res = await apiFetch(`/export/${kind}`);
+    if (!res.ok) { showToast('Export fail','error'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${kind}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`⬇️ ${kind}.csv download ho gaya!`);
+  } catch(e) { showToast('Export nahi hua','error'); }
 }
 </script>
 </body>

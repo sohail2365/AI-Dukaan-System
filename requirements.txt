@@ -3,6 +3,6 @@ uvicorn
 pydantic
 python-dotenv
 groq
-python-jose
+python-jose[cryptography]
 SQLAlchemy
 psycopg2-binary
