@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dukaan AI</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;}
+
+/* ---- LOGIN PAGE ---- */
+.login-page{display:none;min-height:100vh;background:linear-gradient(135deg,#1e293b 0%,#334155 50%,#1e293b 100%);align-items:center;justify-content:center;}
+.login-page.show{display:flex;}
+.login-box{background:white;border-radius:20px;padding:40px;width:420px;max-width:95vw;box-shadow:0 25px 60px rgba(0,0,0,0.3);}
+.login-logo{text-align:center;margin-bottom:28px;}
+.login-logo h1{font-size:28px;color:#1e293b;font-weight:700;}
+.login-logo p{color:#64748b;font-size:14px;margin-top:4px;}
+.login-logo .icon{font-size:48px;margin-bottom:8px;}
+.auth-tabs{display:flex;gap:4px;background:#f1f5f9;border-radius:10px;padding:4px;margin-bottom:24px;}
+.auth-tab{flex:1;padding:8px;text-align:center;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;color:#64748b;transition:all 0.2s;}
+.auth-tab.active{background:white;color:#1e293b;box-shadow:0 1px 4px rgba(0,0,0,0.1);}
+.form-group{margin-bottom:16px;}
+.form-group label{display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;}
+.form-group input{width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;outline:none;transition:border 0.2s;color:#1e293b;}
+.form-group input:focus{border-color:#6366f1;}
+.btn-primary{width:100%;padding:12px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity 0.2s;margin-top:4px;}
+.btn-primary:hover{opacity:0.9;}
+.auth-link{text-align:center;margin-top:16px;font-size:13px;color:#64748b;}
+.auth-link span{color:#6366f1;cursor:pointer;font-weight:600;}
+.info-box{background:#fef9ee;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e;margin-bottom:16px;}
+
+/* ---- MAIN LAYOUT ---- */
+.app{display:none;height:100vh;flex-direction:column;}
+.app.show{display:flex;}
+
+/* Header */
+.topbar{background:#1e293b;color:white;padding:0 20px;height:60px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,0.3);}
+.topbar-left{display:flex;align-items:center;gap:14px;}
+.topbar-logo{font-size:18px;font-weight:700;color:white;}
+.topbar-logo span{color:#818cf8;}
+.topbar-shop{font-size:12px;color:#94a3b8;background:#334155;padding:4px 10px;border-radius:20px;}
+.topbar-right{display:flex;align-items:center;gap:12px;}
+.datetime-box{text-align:right;}
+.datetime-date{font-size:12px;color:#94a3b8;}
+.datetime-time{font-size:16px;font-weight:600;color:#e2e8f0;font-variant-numeric:tabular-nums;}
+.topbar-btn{background:#334155;border:none;color:#e2e8f0;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;transition:background 0.2s;}
+.topbar-btn:hover{background:#475569;}
+.topbar-btn.danger{background:#dc2626;}
+.topbar-btn.danger:hover{background:#b91c1c;}
+
+/* Body layout */
+.app-body{display:flex;flex:1;overflow:hidden;}
+
+/* Sidebar */
+.sidebar{width:220px;background:#1e293b;flex-shrink:0;overflow-y:auto;padding:12px 0;}
+.nav-section{padding:6px 14px 4px;font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:1px;}
+.nav-item{display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;color:#94a3b8;font-size:14px;transition:all 0.15s;border-left:3px solid transparent;margin:1px 0;}
+.nav-item:hover{background:#334155;color:#e2e8f0;}
+.nav-item.active{background:#334155;color:#818cf8;border-left-color:#6366f1;}
+.nav-icon{font-size:18px;width:24px;text-align:center;}
+.nav-divider{height:1px;background:#334155;margin:8px 14px;}
+
+/* Main content */
+.main-content{flex:1;overflow-y:auto;padding:20px;}
+.page{display:none;}
+.page.active{display:block;}
+
+/* Cards */
+.card{background:white;border-radius:14px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:16px;}
+.card-title{font-size:15px;font-weight:700;color:#1e293b;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;}
+.card-title .icon{font-size:18px;}
+
+/* Stats row */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;}
+.stat-card{background:white;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);text-align:center;}
+.stat-num{font-size:26px;font-weight:700;color:#6366f1;}
+.stat-num.green{color:#16a34a;}
+.stat-num.red{color:#dc2626;}
+.stat-num.amber{color:#f59e0b;}
+.stat-lbl{font-size:12px;color:#64748b;margin-top:2px;}
+
+/* Form elements */
+.input-row{display:flex;gap:10px;margin-bottom:4px;}
+input[type="text"],input[type="number"],input[type="date"],input[type="password"]{flex:1;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;outline:none;transition:border 0.2s;color:#1e293b;}
+input:focus{border-color:#6366f1;}
+button{padding:10px 18px;background:#6366f1;color:white;border:none;border-radius:10px;font-size:14px;cursor:pointer;transition:all 0.2s;white-space:nowrap;font-weight:500;}
+button:hover{background:#4f46e5;}
+button:disabled{background:#94a3b8;cursor:not-allowed;}
+.btn-success{background:#16a34a;}
+.btn-success:hover{background:#15803d;}
+.btn-danger{background:#dc2626;}
+.btn-danger:hover{background:#b91c1c;}
+.btn-outline{background:transparent;border:1.5px solid #e2e8f0;color:#64748b;}
+.btn-outline:hover{background:#f8fafc;border-color:#6366f1;color:#6366f1;}
+
+/* Result boxes */
+.result-box{margin-top:14px;padding:16px;background:#f8faff;border-radius:10px;border:1px solid #e0e7ff;display:none;}
+.result-box.show{display:block;}
+.parsed-row{display:flex;justify-content:space-between;padding:7px 0;font-size:14px;border-bottom:1px solid #f1f5f9;}
+.parsed-row:last-child{border-bottom:none;}
+.parsed-row .lbl{color:#94a3b8;font-size:13px;}
+.parsed-row .val{font-weight:600;color:#1e293b;}
+
+/* Badges */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;}
+.badge-green{background:#dcfce7;color:#16a34a;}
+.badge-red{background:#fee2e2;color:#dc2626;}
+.badge-blue{background:#e0f2fe;color:#0369a1;}
+.badge-amber{background:#fef3c7;color:#d97706;}
+
+/* Action buttons */
+.action-btns{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+.edit-btn{padding:3px 8px;background:#e0f2fe;color:#0369a1;border:none;border-radius:6px;cursor:pointer;font-size:11px;}
+.del-btn{padding:3px 8px;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;cursor:pointer;font-size:11px;}
+
+/* Khaata entries */
+.entry-table{width:100%;}
+.entry-row{display:grid;grid-template-columns:0.8fr 1.5fr 0.6fr 1fr;padding:8px 4px;border-bottom:1px solid #f1f5f9;font-size:13px;align-items:center;gap:8px;}
+.entry-row:last-child{border-bottom:none;}
+.entry-header{font-weight:700;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;}
+
+/* Total bar */
+.total-bar{background:linear-gradient(135deg,#fef9ee,#fef3c7);border-radius:10px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:12px;}
+.total-bar .lbl{font-size:13px;color:#92400e;font-weight:600;}
+.total-bar .val{font-size:18px;font-weight:700;color:#d97706;}
+.total-bar.success .lbl{color:#166534;}
+.total-bar.success .val{color:#16a34a;}
+
+/* Manual box */
+.manual-box{background:#fef9ee;padding:14px;border-radius:10px;border:1px solid #fde68a;margin:12px 0;display:none;}
+.manual-box p{font-size:13px;color:#92400e;margin-bottom:10px;font-weight:500;}
+.manual-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.manual-grid label{font-size:12px;color:#64748b;display:block;margin-bottom:4px;}
+.manual-grid input{width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;flex:unset;}
+
+/* Stock warning */
+.stock-warning{background:#fef9ee;padding:12px 14px;border-radius:10px;border:1px solid #fde68a;margin:10px 0;display:none;font-size:13px;color:#92400e;}
+
+/* Variant box */
+.variant-box{background:#eff6ff;padding:14px;border-radius:10px;border:1px solid #bfdbfe;margin:12px 0;display:none;}
+.variant-box p{font-size:13px;color:#1d4ed8;font-weight:600;margin-bottom:10px;}
+.variant-list{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;}
+.variant-item{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:white;border-radius:8px;border:1.5px solid #e2e8f0;cursor:pointer;transition:all 0.15s;}
+.variant-item:hover{border-color:#6366f1;background:#f8faff;}
+.variant-item.selected{border-color:#6366f1;background:#eef2ff;}
+.variant-name{font-size:13px;font-weight:600;color:#1e293b;}
+.variant-meta{display:flex;gap:8px;align-items:center;}
+
+/* Confirm buttons */
+.confirm-btns{display:flex;gap:10px;margin-top:14px;}
+
+/* Inventory table */
+.inv-table{width:100%;border-collapse:collapse;font-size:13px;}
+.inv-table th{background:#f8fafc;padding:10px 8px;text-align:left;font-weight:700;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;}
+.inv-table td{padding:10px 8px;border-bottom:1px solid #f1f5f9;color:#1e293b;}
+.inv-table tr:hover td{background:#f8fafc;}
+.search-bar{display:flex;gap:10px;margin-bottom:14px;}
+
+/* Modal */
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+.modal.show{display:flex;}
+.modal-box{background:white;border-radius:16px;padding:28px;width:380px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.2);}
+.modal-box h3{font-size:17px;font-weight:700;color:#1e293b;margin-bottom:20px;}
+.modal-field{margin-bottom:14px;}
+.modal-field label{display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;}
+.modal-field input{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;flex:unset;outline:none;}
+.modal-field input:focus{border-color:#6366f1;}
+.modal-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+.modal-grid-2 label{display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:5px;}
+.modal-grid-2 input{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;flex:unset;outline:none;}
+.modal-btns{display:flex;gap:10px;margin-top:4px;}
+
+/* Calculator */
+.calc-panel{position:fixed;top:70px;right:16px;width:260px;background:white;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.2);z-index:999;overflow:hidden;display:none;}
+.calc-panel.show{display:block;}
+.calc-screen{background:#1e293b;color:white;padding:14px 16px;text-align:right;}
+.calc-expr{font-size:12px;color:#64748b;min-height:16px;}
+.calc-display{font-size:30px;font-weight:300;margin-top:4px;word-break:break-all;}
+.calc-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#e2e8f0;}
+.calc-btns button{padding:16px 0;font-size:15px;border:none;background:white;cursor:pointer;border-radius:0;transition:background 0.1s;}
+.calc-btns button:hover{background:#f8fafc;}
+.cb-op{background:#f1f5f9 !important;color:#6366f1;font-weight:700;}
+.cb-eq{background:#6366f1 !important;color:white;font-weight:700;}
+.cb-eq:hover{background:#4f46e5 !important;}
+.cb-clear{background:#fee2e2 !important;color:#dc2626;font-weight:700;}
+.cb-zero{grid-column:span 2;}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;color:white;font-size:14px;font-weight:500;opacity:0;transition:opacity 0.3s;z-index:2000;box-shadow:0 4px 20px rgba(0,0,0,0.2);}
+.toast.show{opacity:1;}
+.toast.success{background:#16a34a;}
+.toast.error{background:#dc2626;}
+
+/* Page header */
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.page-title{font-size:20px;font-weight:700;color:#1e293b;}
+.page-subtitle{font-size:13px;color:#64748b;margin-top:2px;}
+</style>
+</head>
+<body>
+
+<!-- =============== LOGIN PAGE =============== -->
+<div class="login-page" id="login-page">
+<div class="login-box">
+  <div class="login-logo">
+    <div class="icon">🏪</div>
+    <h1>Dukaan AI</h1>
+    <p>Smart Karyana Shop Manager</p>
+  </div>
+
+  <div class="auth-tabs">
+    <div class="auth-tab active" id="tab-login" onclick="switchTab('login')">Login</div>
+    <div class="auth-tab" id="tab-register" onclick="switchTab('register')">Register</div>
+    <div class="auth-tab" id="tab-forgot" onclick="switchTab('forgot')">Forgot Password</div>
+  </div>
+
+  <!-- Login -->
+  <div id="form-login">
+    <div class="form-group"><label>Username</label><input type="text" id="login-username" placeholder="username" onkeydown="if(event.key==='Enter')handleLogin()"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="login-password" placeholder="password" onkeydown="if(event.key==='Enter')handleLogin()"></div>
+    <button class="btn-primary" onclick="handleLogin()">Login karo</button>
+  </div>
+
+  <!-- Register -->
+  <div id="form-register" style="display:none;">
+    <div class="form-group"><label>Shop Name</label><input type="text" id="reg-shopname" placeholder="jaise: Ali Karyana Store"></div>
+    <div class="form-group"><label>Username</label><input type="text" id="reg-username" placeholder="username (min 3 chars)"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="reg-password" placeholder="password (min 4 chars)"></div>
+    <button class="btn-primary" onclick="handleRegister()" style="background:linear-gradient(135deg,#16a34a,#15803d);">Account banao</button>
+  </div>
+
+  <!-- Forgot -->
+  <div id="form-forgot" style="display:none;">
+    <div class="info-box">ℹ️ Username aur exact shop name dono sahi hone chahiye</div>
+    <div class="form-group"><label>Username</label><input type="text" id="reset-username" placeholder="username"></div>
+    <div class="form-group"><label>Shop Name (exactly)</label><input type="text" id="reset-shopname" placeholder="jaise: Ali Karyana Store"></div>
+    <div class="form-group"><label>Naya Password</label><input type="password" id="reset-newpass" placeholder="naya password"></div>
+    <div class="form-group"><label>Confirm Password</label><input type="password" id="reset-confirmpass" placeholder="dobara likho"></div>
+    <button class="btn-primary" onclick="handleResetPassword()" style="background:linear-gradient(135deg,#dc2626,#b91c1c);">Password Reset karo</button>
+  </div>
+</div>
+</div>
+
+<!-- =============== MAIN APP =============== -->
+<div class="app" id="main-app">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-logo">🏪 Dukaan <span>AI</span></div>
+      <div class="topbar-shop" id="shop-name-display">Shop</div>
+    </div>
+    <div class="topbar-right">
+      <div class="datetime-box">
+        <div class="datetime-date" id="dt-date">—</div>
+        <div class="datetime-time" id="dt-time">—</div>
+      </div>
+      <button class="topbar-btn" onclick="toggleCalc()">🧮</button>
+      <button class="topbar-btn danger" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="app-body">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div style="height:8px;"></div>
+      <div class="nav-section">Main</div>
+      <div class="nav-item active" onclick="showPage('entry')" id="nav-entry">
+        <span class="nav-icon">✍️</span><span>Naya Entry</span>
+      </div>
+      <div class="nav-item" onclick="showPage('multi-entry')" id="nav-multi-entry">
+        <span class="nav-icon">🧾</span><span>Multiple Items</span>
+      </div>
+
+      <div class="nav-divider"></div>
+      <div class="nav-section">Customers</div>
+      <div class="nav-item" onclick="showPage('khaata');getKhaata()" id="nav-khaata">
+        <span class="nav-icon">📒</span><span>Customer Khaata</span>
+      </div>
+      <div class="nav-item" onclick="showPage('customers');getAllCustomers()" id="nav-customers">
+        <span class="nav-icon">👥</span><span>Sab Customers</span>
+      </div>
+
+      <div class="nav-divider"></div>
+      <div class="nav-section">Stock</div>
+      <div class="nav-item" onclick="showPage('inventory-check')" id="nav-inv-check">
+        <span class="nav-icon">🔍</span><span>Inventory Check</span>
+      </div>
+      <div class="nav-item" onclick="showPage('inventory-manage');loadInventory()" id="nav-inv-manage">
+        <span class="nav-icon">📦</span><span>Manage Inventory</span>
+      </div>
+
+      <div class="nav-divider"></div>
+      <div class="nav-section">Purchases</div>
+      <div class="nav-item" onclick="showPage('purchase')" id="nav-purchase">
+        <span class="nav-icon">🛒</span><span>Naya Purchase</span>
+      </div>
+      <div class="nav-item" onclick="showPage('purchase-history');getPurchaseHistory()" id="nav-purchase-history">
+        <span class="nav-icon">📋</span><span>Purchase History</span>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+
+      <!-- ===== PAGE: ENTRY ===== -->
+      <div class="page active" id="page-entry">
+        <div class="page-header">
+          <div>
+            <div class="page-title">✍️ Naya Khaata Entry</div>
+            <div class="page-subtitle">Customer ki sale ya payment record karo</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">🤖</span> AI Entry</div>
+          <div class="input-row">
+            <input type="text" id="entry-input" placeholder="Likho: bilal ne brite 2 liya..." onkeydown="if(event.key==='Enter')parseEntry()">
+            <button onclick="parseEntry()" id="parse-btn">Parse karo</button>
+          </div>
+
+          <div class="result-box" id="parse-result">
+            <div class="parsed-row"><span class="lbl">Customer</span><span class="val"><input type="text" id="r-customer" oninput="syncSingleEntryFromInputs()" style="width:220px;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:unset;"></span></div>
+            <div class="parsed-row"><span class="lbl">Item</span><span class="val"><input type="text" id="r-item" oninput="syncSingleEntryFromInputs()" style="width:220px;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:unset;"></span></div>
+            <div class="parsed-row"><span class="lbl">Quantity</span><span class="val"><input type="number" id="r-qty" min="0" step="0.01" oninput="syncSingleEntryFromInputs()" style="width:110px;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:unset;text-align:right;"></span></div>
+            <div class="parsed-row"><span class="lbl">Price per item</span><span class="val"><input type="number" id="r-price" min="0" step="0.01" oninput="syncSingleEntryFromInputs()" style="width:130px;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:unset;text-align:right;"></span></div>
+            <div class="parsed-row"><span class="lbl">Total</span><span class="val" id="r-total">-</span></div>
+            <div class="parsed-row"><span class="lbl">Stock</span><span class="val" id="r-stock">—</span></div>
+
+            <div class="stock-warning" id="stock-warning">
+              ⚠️ Yeh item out of stock hai! Phir bhi save karna chahte hain?
+              <label style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer;font-weight:600;">
+                <input type="checkbox" id="force-save-check"> Haan, phir bhi save karo
+              </label>
+            </div>
+
+            <div class="variant-box" id="variant-box">
+              <p>📦 Multiple variants mile — kaunsa select karein?</p>
+              <div class="variant-list" id="variant-list"></div>
+            </div>
+
+            <div class="manual-box" id="manual-box">
+              <p>⚠️ Yeh item inventory mein nahi mila — manually price daalo</p>
+              <div class="manual-grid">
+                <div><label>Price per unit (Rs.)</label><input type="number" id="manual-price" placeholder="jaise: 20" oninput="updateManualTotal()"></div>
+                <div><label>Total (auto)</label><input type="number" id="manual-total" readonly style="background:#f8fafc;"></div>
+              </div>
+            </div>
+
+            <div class="confirm-btns">
+              <button class="btn-success" onclick="saveEntry()">✓ Confirm karo</button>
+              <button class="btn-danger" onclick="cancelEntry()">✗ Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- ===== PAGE: MULTI ENTRY ===== -->
+      <div class="page" id="page-multi-entry">
+        <div class="page-header">
+          <div>
+            <div class="page-title">🧾 Multiple Items Entry</div>
+            <div class="page-subtitle">Ek baar mein multiple items enter karo + Bill print karo</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">🤖</span> AI Multi Entry</div>
+          <div class="input-row">
+            <input type="text" id="multi-input"
+              placeholder="Ali ne brite 2, surf excel 1, pepsi 3 liya..."
+              onkeydown="if(event.key==='Enter')parseMultiEntry()">
+            <button onclick="parseMultiEntry()" id="multi-btn">Parse karo</button>
+          </div>
+
+          <div class="result-box" id="multi-result">
+            <div class="parsed-row">
+              <span class="lbl">Customer</span>
+              <span class="val">
+                <input type="text" id="multi-customer"
+                  style="border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 12px;font-size:14px;width:220px;flex:unset;outline:none;"
+                  placeholder="Customer naam">
+              </span>
+            </div>
+
+            <div style="margin-top:14px;overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                  <tr style="background:#f8fafc;">
+                    <th style="padding:10px 8px;text-align:left;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Item</th>
+                    <th style="padding:10px 8px;text-align:center;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Qty</th>
+                    <th style="padding:10px 8px;text-align:right;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Price</th>
+                    <th style="padding:10px 8px;text-align:right;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Total</th>
+                    <th style="padding:10px 8px;text-align:center;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Stock</th>
+                    <th style="padding:10px 8px;text-align:center;color:#64748b;font-size:11px;text-transform:uppercase;border-bottom:2px solid #e2e8f0;"></th>
+                  </tr>
+                </thead>
+                <tbody id="multi-items-body"></tbody>
+                <tfoot>
+                  <tr style="background:#fef9ee;">
+                    <td colspan="3" style="padding:12px 8px;font-weight:700;color:#92400e;font-size:14px;">Grand Total</td>
+                    <td style="padding:12px 8px;text-align:right;font-weight:700;color:#d97706;font-size:18px;" id="multi-grand-total">Rs. 0</td>
+                    <td colspan="2"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div style="margin-top:10px;">
+              <button class="btn-outline" onclick="addManualItem()" style="font-size:13px;padding:7px 14px;">+ Item manually add karo</button>
+            </div>
+
+            <div class="confirm-btns" style="margin-top:14px;">
+              <button class="btn-success" onclick="saveMultiEntry()">✓ Save & Bill Print</button>
+              <button onclick="printBill()" style="background:#6366f1;">🖨️ Sirf Print</button>
+              <button class="btn-danger" onclick="cancelMultiEntry()">✗ Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PAGE: KHAATA ===== -->
+      <div class="page" id="page-khaata">
+        <div class="page-header">
+          <div>
+            <div class="page-title">📒 Customer Khaata</div>
+            <div class="page-subtitle">Kisi bhi customer ka hisaab dekho</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="input-row">
+            <input type="text" id="khaata-input" placeholder="Customer naam likho..." onkeydown="if(event.key==='Enter')getKhaata()">
+            <button onclick="getKhaata()">Dekho</button>
+          </div>
+          <div class="result-box" id="khaata-result">
+            <div class="entry-row entry-header"><span>Taareekh</span><span>Item</span><span>Qty</span><span>Amount</span></div>
+            <div id="khaata-entries"></div>
+            <div class="total-bar" id="khaata-total-bar">
+              <span class="lbl">💰 Total Baaki</span>
+              <span class="val" id="khaata-total">Rs. 0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PAGE: ALL CUSTOMERS ===== -->
+      <div class="page" id="page-customers">
+        <div class="page-header">
+          <div>
+            <div class="page-title">👥 Sab Customers</div>
+            <div class="page-subtitle">Tamam customers ka overview</div>
+          </div>
+          <button onclick="getAllCustomers()" class="btn-outline">🔄 Refresh</button>
+        </div>
+        <div class="card">
+          <div class="entry-row entry-header"><span>Customer</span><span>Phone</span><span>Entries</span><span>Total Baaki</span></div>
+          <div id="all-customers-list"></div>
+          <div class="total-bar success">
+            <span class="lbl">Grand Total Baaki</span>
+            <span class="val" id="grand-total">Rs. 0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PAGE: INVENTORY CHECK ===== -->
+      <div class="page" id="page-inventory-check">
+        <div class="page-header">
+          <div>
+            <div class="page-title">🔍 Inventory Check</div>
+            <div class="page-subtitle">Kisi item ka price aur stock check karo</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="input-row">
+            <input type="text" id="inv-input" placeholder="Item naam likho..." onkeydown="if(event.key==='Enter')checkInventory()">
+            <button onclick="checkInventory()">Check karo</button>
+          </div>
+          <div class="result-box" id="inv-result">
+            <div class="parsed-row"><span class="lbl">Item</span><span class="val" id="inv-name">—</span></div>
+            <div class="parsed-row"><span class="lbl">Sale Price</span><span class="val" id="inv-price">—</span></div>
+            <div class="parsed-row"><span class="lbl">Stock</span><span class="val" id="inv-stock">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PAGE: INVENTORY MANAGE ===== -->
+      <div class="page" id="page-inventory-manage">
+        <div class="page-header">
+          <div>
+            <div class="page-title">📦 Inventory Management</div>
+            <div class="page-subtitle">Items add, edit, delete karo</div>
+          </div>
+          <button class="btn-success" onclick="showAddItemModal()">+ Item Add karo</button>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-card"><div class="stat-num" id="inv-total-items">0</div><div class="stat-lbl">Total Items</div></div>
+          <div class="stat-card"><div class="stat-num amber" id="inv-low-stock">0</div><div class="stat-lbl">Low Stock</div></div>
+          <div class="stat-card"><div class="stat-num red" id="inv-out-stock">0</div><div class="stat-lbl">Out of Stock</div></div>
+        </div>
+
+        <div class="card">
+          <div class="search-bar">
+            <input type="text" id="inv-search-input" placeholder="Item dhundho..." oninput="filterInventory()" style="flex:1;">
+            <button class="btn-outline" onclick="loadInventory()">🔄 Refresh</button>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="inv-table">
+              <thead><tr><th>Item</th><th>Category</th><th>Sale Price</th><th>Purchase Rate</th><th>Stock</th><th>Reorder</th><th>Actions</th></tr></thead>
+              <tbody id="inv-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PAGE: PURCHASE ===== -->
+      <div class="page" id="page-purchase">
+        <div class="page-header">
+          <div>
+            <div class="page-title">🛒 Naya Purchase</div>
+            <div class="page-subtitle">Supplier se khareedari record karo</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">🤖</span> AI Purchase Entry</div>
+          <div class="input-row">
+            <input type="text" id="purchase-input" placeholder="Rehman se 24 Brite 260 mein liye..." onkeydown="if(event.key==='Enter')parsePurchase()">
+            <button onclick="parsePurchase()" id="purchase-btn">Parse karo</button>
+          </div>
+          <div class="result-box" id="purchase-result">
+            <div class="parsed-row"><span class="lbl">Supplier</span><span class="val" id="p-supplier">—</span></div>
+            <div class="parsed-row"><span class="lbl">Item</span><span class="val" id="p-item">—</span></div>
+            <div class="parsed-row"><span class="lbl">Quantity</span><span class="val" id="p-qty">—</span></div>
+            <div class="parsed-row"><span class="lbl">Purchase Rate</span><span class="val" id="p-rate">—</span></div>
+            <div class="parsed-row"><span class="lbl">Total Cost</span><span class="val" id="p-total">—</span></div>
+            <div class="parsed-row"><span class="lbl">Sale Price</span><span class="val" id="p-sale">—</span></div>
+            <div class="parsed-row"><span class="lbl">Current Stock</span><span class="val" id="p-stock">—</span></div>
+            <div class="confirm-btns">
+              <button class="btn-success" onclick="savePurchase()">✓ Confirm karo</button>
+              <button class="btn-danger" onclick="cancelPurchase()">✗ Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PAGE: PURCHASE HISTORY ===== -->
+      <div class="page" id="page-purchase-history">
+        <div class="page-header">
+          <div>
+            <div class="page-title">📋 Purchase History</div>
+            <div class="page-subtitle">Tamam purchases ka record</div>
+          </div>
+          <button class="btn-outline" onclick="getPurchaseHistory()">🔄 Refresh</button>
+        </div>
+        <div class="card">
+          <div class="entry-row entry-header"><span>Date</span><span>Item</span><span>Qty @ Rate</span><span>Total</span></div>
+          <div id="purchase-history-list"></div>
+          <div class="total-bar">
+            <span class="lbl">Grand Total Purchases</span>
+            <span class="val" id="purchase-grand-total">Rs. 0</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end main-content -->
+  </div><!-- end app-body -->
+</div><!-- end app -->
+
+<!-- =============== MODALS =============== -->
+
+<!-- Item Modal -->
+<div id="item-modal" class="modal">
+  <div class="modal-box" style="width:440px;">
+    <h3 id="item-modal-title">📦 Naya Item Add karo</h3>
+    <input type="hidden" id="item-modal-id">
+    <div class="modal-field" style="grid-column:span 2;">
+      <label>Item Naam *</label>
+      <input type="text" id="item-name-input" placeholder="jaise: Brite 500gm">
+    </div>
+    <div class="modal-grid-2">
+      <div><label>Category</label><input type="text" id="item-category-input" placeholder="Washing Powder"></div>
+      <div><label>Sale Price (Rs.) *</label><input type="number" id="item-price-input" placeholder="0"></div>
+      <div><label>Purchase Rate (Rs.)</label><input type="number" id="item-purchase-input" placeholder="0"></div>
+      <div><label>Current Stock</label><input type="number" id="item-stock-input" placeholder="0"></div>
+    </div>
+    <div class="modal-field">
+      <label>Reorder Level (low stock alert)</label>
+      <input type="number" id="item-reorder-input" placeholder="5" value="5">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-success" onclick="saveItem()" id="item-save-btn">✓ Save karo</button>
+      <button class="btn-danger" onclick="closeModal('item-modal')">✗ Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Customer Edit Modal -->
+<div id="customer-modal" class="modal">
+  <div class="modal-box">
+    <h3>✏️ Customer Edit karo</h3>
+    <input type="hidden" id="edit-customer-old">
+    <div class="modal-field"><label>Naam</label><input type="text" id="edit-customer-name"></div>
+    <div class="modal-field"><label>Phone</label><input type="text" id="edit-customer-phone"></div>
+    <div class="modal-btns">
+      <button class="btn-success" onclick="saveCustomerEdit()">✓ Save</button>
+      <button class="btn-danger" onclick="closeModal('customer-modal')">✗ Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Entry Edit Modal -->
+<div id="entry-modal" class="modal">
+  <div class="modal-box">
+    <h3>✏️ Entry Edit karo</h3>
+    <input type="hidden" id="edit-entry-id">
+    <div class="modal-field"><label>Item naam</label><input type="text" id="edit-entry-item"></div>
+    <div class="modal-grid-2">
+      <div><label>Quantity</label><input type="number" id="edit-entry-qty"></div>
+      <div><label>Price per item</label><input type="number" id="edit-entry-price"></div>
+    </div>
+    <div class="modal-field"><label>Date</label><input type="date" id="edit-entry-date"></div>
+    <div class="modal-btns">
+      <button class="btn-success" onclick="saveEntryEdit()">✓ Save</button>
+      <button class="btn-danger" onclick="closeModal('entry-modal')">✗ Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Purchase Edit Modal -->
+<div id="purchase-modal" class="modal">
+  <div class="modal-box">
+    <h3>✏️ Purchase Edit karo</h3>
+    <input type="hidden" id="edit-purchase-id">
+    <div class="modal-field"><label>Supplier</label><input type="text" id="edit-purchase-supplier"></div>
+    <div class="modal-field"><label>Item naam</label><input type="text" id="edit-purchase-item"></div>
+    <div class="modal-grid-2">
+      <div><label>Quantity</label><input type="number" id="edit-purchase-qty"></div>
+      <div><label>Rate per unit</label><input type="number" id="edit-purchase-rate"></div>
+    </div>
+    <div class="modal-field"><label>Date</label><input type="date" id="edit-purchase-date"></div>
+    <div class="modal-btns">
+      <button class="btn-success" onclick="savePurchaseEdit()">✓ Save</button>
+      <button class="btn-danger" onclick="closeModal('purchase-modal')">✗ Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Calculator -->
+<div class="calc-panel" id="calc-panel">
+  <div class="calc-screen">
+    <div class="calc-expr" id="calc-expr"></div>
+    <div class="calc-display" id="calc-display">0</div>
+  </div>
+  <div class="calc-btns">
+    <button class="cb-clear" onclick="calcClear()">AC</button>
+    <button class="cb-op" onclick="calcSign()">+/-</button>
+    <button class="cb-op" onclick="calcPercent()">%</button>
+    <button class="cb-op" onclick="calcOp('/')">÷</button>
+    <button onclick="calcNum('7')">7</button><button onclick="calcNum('8')">8</button><button onclick="calcNum('9')">9</button>
+    <button class="cb-op" onclick="calcOp('*')">×</button>
+    <button onclick="calcNum('4')">4</button><button onclick="calcNum('5')">5</button><button onclick="calcNum('6')">6</button>
+    <button class="cb-op" onclick="calcOp('-')">−</button>
+    <button onclick="calcNum('1')">1</button><button onclick="calcNum('2')">2</button><button onclick="calcNum('3')">3</button>
+    <button class="cb-op" onclick="calcOp('+')">+</button>
+    <button class="cb-zero" onclick="calcNum('0')">0</button>
+    <button onclick="calcDot()">.</button>
+    <button class="cb-eq" onclick="calcEquals()">=</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = window.location.origin;
+let parsedData = null;
+let allInventoryItems = [];
+
+// ---- Helpers ----
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  setTimeout(() => t.className = 'toast', 3000);
+}
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function getToken() { return localStorage.getItem('dukaan_token'); }
+function getShopName() { return localStorage.getItem('shop_name'); }
+function toTitleCase(text) {
+  return String(text || '').toLowerCase().replace(/\w/g, c => c.toUpperCase());
+}
+function saveToken(t, s) { localStorage.setItem('dukaan_token', t); localStorage.setItem('shop_name', s); }
+
+async function apiFetch(url, options = {}) {
+  const token = getToken();
+  const h = {'Content-Type':'application/json','ngrok-skip-browser-warning':'true'};
+  if (token) h['Authorization'] = `Bearer ${token}`;
+  options.headers = {...h, ...(options.headers||{})};
+  return fetch(API + url, options);
+}
+
+// ---- DateTime ----
+function updateDateTime() {
+  const now = new Date();
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('dt-date').textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('dt-time').textContent = `${h}:${m}:${s}`;
+}
+setInterval(updateDateTime, 1000);
+updateDateTime();
+
+// ---- Auth tabs ----
+function switchTab(tab) {
+  ['login','register','forgot'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle('active', t===tab);
+    document.getElementById(`form-${t}`).style.display = t===tab ? 'block' : 'none';
+  });
+}
+
+// ---- Login/Register/Reset ----
+async function handleLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value.trim();
+  if (!username || !password) { showToast('Username aur password daalo!','error'); return; }
+  try {
+    const res = await fetch(API+'/auth/login', {method:'POST', headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'true'}, body:JSON.stringify({username,password})});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    saveToken(data.token, data.shop_name);
+    showMainApp();
+  } catch(e) { showToast('Server se connect nahi ho saka','error'); }
+}
+
+async function handleRegister() {
+  const username = document.getElementById('reg-username').value.trim();
+  const password = document.getElementById('reg-password').value.trim();
+  const shop_name = document.getElementById('reg-shopname').value.trim();
+  if (!username||!password||!shop_name) { showToast('Sab fields bharo!','error'); return; }
+  try {
+    const res = await fetch(API+'/auth/register', {method:'POST', headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'true'}, body:JSON.stringify({username,password,shop_name})});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    saveToken(data.token, data.shop_name);
+    showMainApp();
+  } catch(e) { showToast('Server se connect nahi ho saka','error'); }
+}
+
+async function handleResetPassword() {
+  const username = document.getElementById('reset-username').value.trim();
+  const shopName = document.getElementById('reset-shopname').value.trim();
+  const newPass = document.getElementById('reset-newpass').value.trim();
+  const confirmPass = document.getElementById('reset-confirmpass').value.trim();
+  if (!username||!shopName||!newPass||!confirmPass) { showToast('Sab fields bharo!','error'); return; }
+  if (newPass !== confirmPass) { showToast('Password match nahi!','error'); return; }
+  try {
+    const res = await fetch(API+'/auth/reset-password', {method:'POST', headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'true'}, body:JSON.stringify({username,shop_name:shopName,new_password:newPass})});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    showToast('✅ Password reset! Ab login karo');
+    setTimeout(() => switchTab('login'), 1500);
+  } catch(e) { showToast('Reset nahi hua','error'); }
+}
+
+function logout() {
+  localStorage.clear();
+  document.getElementById('main-app').classList.remove('show');
+  document.getElementById('login-page').classList.add('show');
+}
+
+function showMainApp() {
+  document.getElementById('login-page').classList.remove('show');
+  document.getElementById('main-app').classList.add('show');
+  document.getElementById('shop-name-display').textContent = getShopName();
+  loadInventory();
+}
+
+window.onload = () => {
+  if (getToken()) showMainApp();
+  else document.getElementById('login-page').classList.add('show');
+};
+
+// ---- Navigation ----
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  const navEl = document.getElementById(`nav-${name}`);
+  if (navEl) navEl.classList.add('active');
+}
+
+// ---- Calculator ----
+let calcCurrent='0', calcPrev='', calcOperator='', calcNewNum=true;
+function toggleCalc() { document.getElementById('calc-panel').classList.toggle('show'); }
+function calcUpdate() { document.getElementById('calc-display').textContent = calcCurrent; }
+function calcNum(n) { if(calcNewNum){calcCurrent=n;calcNewNum=false;}else{calcCurrent=calcCurrent==='0'?n:calcCurrent+n;} calcUpdate(); }
+function calcDot() { if(calcNewNum){calcCurrent='0.';calcNewNum=false;}else if(!calcCurrent.includes('.')){calcCurrent+='.';} calcUpdate(); }
+function calcOp(op) { if(calcPrev&&!calcNewNum)calcEquals(true); calcPrev=calcCurrent; calcOperator=op; calcNewNum=true; const s={'+':'+','-':'−','*':'×','/':'÷'}; document.getElementById('calc-expr').textContent=`${calcPrev} ${s[op]}`; }
+function calcEquals(chain=false) { if(!calcOperator||!calcPrev)return; const a=parseFloat(calcPrev),b=parseFloat(calcCurrent); let r; if(calcOperator==='+')r=a+b; else if(calcOperator==='-')r=a-b; else if(calcOperator==='*')r=a*b; else r=b!==0?a/b:'Error'; const s={'+':'+','-':'−','*':'×','/':'÷'}; if(!chain)document.getElementById('calc-expr').textContent=`${calcPrev} ${s[calcOperator]} ${calcCurrent} =`; calcCurrent=r==='Error'?'Error':String(parseFloat(r.toFixed(10))); calcPrev='';calcOperator='';calcNewNum=true; calcUpdate(); }
+function calcClear() { calcCurrent='0';calcPrev='';calcOperator='';calcNewNum=true; document.getElementById('calc-expr').textContent=''; calcUpdate(); }
+function calcSign() { calcCurrent=String(parseFloat(calcCurrent)*-1); calcUpdate(); }
+function calcPercent() { calcCurrent=String(parseFloat(calcCurrent)/100); calcUpdate(); }
+
+// ---- Entry ----
+async function parseEntry() {
+  const text = document.getElementById('entry-input').value.trim();
+  if (!text) return;
+  const btn = document.getElementById('parse-btn');
+  btn.disabled = true; btn.textContent = 'AI soch raha hai...';
+  try {
+    const res = await apiFetch('/entry/parse', {method:'POST', body:JSON.stringify({text})});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    parsedData = data;
+    parsedData._selectedItemName = data.inventory_id ? data.item : null;
+
+    document.getElementById('r-customer').value = data.customer || '';
+    document.getElementById('r-item').value = data.item || '';
+    document.getElementById('r-qty').value = data.quantity || 1;
+    document.getElementById('r-price').value = data.price || '';
+    updateSingleTotal();
+    setSingleStock(data.stock, data.manual);
+
+    const sw = document.getElementById('stock-warning');
+    const fc = document.getElementById('force-save-check');
+    if (data.stock === 0 && !data.manual) { sw.style.display='block'; fc.checked=false; }
+    else { sw.style.display='none'; }
+
+    document.getElementById('variant-box').style.display = 'none';
+    if (data.item && !data.manual) {
+      try {
+        const vRes = await apiFetch(`/inventory/variants/${encodeURIComponent(data.item)}`);
+        const vData = await vRes.json();
+        if (vData.variants && vData.variants.length > 1) showVariants(vData.variants);
+      } catch(e) {}
+    }
+
+    const mb = document.getElementById('manual-box');
+    if (data.manual) { mb.style.display='block'; document.getElementById('manual-price').value=''; document.getElementById('manual-total').value=''; }
+    else { mb.style.display='none'; }
+
+    document.getElementById('parse-result').classList.add('show');
+  } catch(e) { showToast('Server se connection nahi hua','error'); }
+  btn.disabled = false; btn.textContent = 'Parse karo';
+}
+
+function syncSingleEntryFromInputs() {
+  if (!parsedData) parsedData = {};
+  parsedData.customer = document.getElementById('r-customer').value.trim();
+  parsedData.item = document.getElementById('r-item').value.trim();
+  parsedData.quantity = parseFloat(document.getElementById('r-qty').value) || 0;
+  parsedData.price = parseFloat(document.getElementById('r-price').value) || 0;
+  if (parsedData.item !== parsedData._selectedItemName) {
+    parsedData.inventory_id = null;
+    parsedData.stock = undefined;
+  }
+  updateSingleTotal();
+}
+
+function updateSingleTotal() {
+  const qty = parseFloat(document.getElementById('r-qty').value) || 0;
+  const price = parseFloat(document.getElementById('r-price').value) || 0;
+  document.getElementById('r-total').textContent = `Rs. ${round2(qty * price)}`;
+}
+
+function setSingleStock(stock, manual=false) {
+  document.getElementById('r-stock').innerHTML = stock !== undefined && stock !== null
+    ? `<span class="badge ${stock > 0 ? 'badge-green' : 'badge-red'}">${stock > 0 ? stock+' baaki' : 'Out of stock'}</span>`
+    : `<span class="badge ${manual ? 'badge-blue' : 'badge-amber'}">${manual ? 'Manual entry' : 'Not linked'}</span>`;
+}
+
+function showVariants(variants) {
+  window._variants = variants;
+  const vb = document.getElementById('variant-box');
+  vb.style.display = 'block';
+  document.getElementById('variant-list').innerHTML = variants.map((v,i) => `
+    <div class="variant-item" onclick="selectVariant(${i})" id="vi-${i}">
+      <span class="variant-name">${v.name}</span>
+      <span class="variant-meta">
+        <span style="font-size:13px;color:#64748b;">Rs. ${v.price}</span>
+        <span class="badge ${v.stock>0?'badge-green':'badge-red'}">${v.stock>0?v.stock+' baaki':'Out of stock'}</span>
+      </span>
+    </div>`).join('');
+}
+
+function selectVariant(i) {
+  const v = window._variants[i];
+  window._variants.forEach((_,j) => { const el=document.getElementById(`vi-${j}`); if(el)el.classList.remove('selected'); });
+  const el = document.getElementById(`vi-${i}`); if(el) el.classList.add('selected');
+  parsedData.item = v.name;
+  parsedData._selectedItemName = v.name;
+  parsedData.price = v.price;
+  parsedData.stock = v.stock;
+  parsedData.inventory_id = v.id;
+  parsedData.manual = false;
+  document.getElementById('r-item').value = v.name;
+  document.getElementById('r-price').value = v.price;
+  updateSingleTotal();
+  setSingleStock(v.stock, false);
+  const sw = document.getElementById('stock-warning');
+  if (v.stock===0) { sw.style.display='block'; document.getElementById('force-save-check').checked=false; }
+  else { sw.style.display='none'; }
+}
+
+function updateManualTotal() {
+  const price = parseFloat(document.getElementById('manual-price').value)||0;
+  const qty = parseFloat(document.getElementById('r-qty').value)||1;
+  const total = price*qty;
+  document.getElementById('manual-total').value = total.toFixed(0);
+  document.getElementById('r-price').value = price || '';
+  if (parsedData) { parsedData.price = price; parsedData.inventory_id = null; parsedData.manual = true; }
+  updateSingleTotal();
+}
+
+async function saveEntry() {
+  if (!parsedData) return;
+  syncSingleEntryFromInputs();
+  if (parsedData.stock===0 && !parsedData.manual) {
+    if (!document.getElementById('force-save-check').checked) { showToast('Out of stock! Checkbox check karo','error'); return; }
+  }
+  if (!parsedData.customer) { showToast('Customer naam daalo!','error'); return; }
+  if (!parsedData.item) { showToast('Item naam daalo!','error'); return; }
+  if (!parsedData.price || parsedData.price <= 0) { showToast('Price daalo pehle!','error'); return; }
+
+  const body = {
+    text: document.getElementById('entry-input').value.trim(),
+    customer: parsedData.customer,
+    item: parsedData.item,
+    quantity: parsedData.quantity || 1,
+    price: parsedData.price,
+    manual_price: parsedData.manual ? parsedData.price : 0,
+    inventory_id: parsedData.inventory_id || null
+  };
+  try {
+    const res = await apiFetch('/entry/save', {method:'POST', body:JSON.stringify(body)});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    showToast(`${data.type==='payment'?'Payment':'Entry'}: ${data.data?.customer} - ${data.data?.item} save ho gaya!`);
+    cancelEntry();
+  } catch(e) { showToast('Save nahi hua','error'); }
+}
+
+function cancelEntry() {
+  document.getElementById('entry-input').value='';
+  document.getElementById('parse-result').classList.remove('show');
+  document.getElementById('manual-box').style.display='none';
+  document.getElementById('variant-box').style.display='none';
+  document.getElementById('stock-warning').style.display='none';
+  window._variants=null; parsedData=null;
+}
+
+// ---- Multi Item Entry ----
+let multiParsedData = null;
+
+function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
+function recalcMultiTotals() {
+  if (!multiParsedData) return;
+  multiParsedData.items.forEach(item => { item.total = round2((item.quantity || 0) * (item.price || 0)); });
+  multiParsedData.grand_total = round2(multiParsedData.items.reduce((s,i) => s + (i.total || 0), 0));
+}
+
+function renderMultiTable() {
+  if (!multiParsedData) return;
+  recalcMultiTotals();
+  document.getElementById('multi-items-body').innerHTML = multiParsedData.items.map((item, i) => {
+    const variantSelect = item.variants && item.variants.length > 1 ? `
+      <select onchange="selectMultiVariant(${i}, this.value)" style="margin-top:5px;width:100%;padding:5px;border:1.5px solid #bfdbfe;border-radius:6px;font-size:12px;background:#eff6ff;color:#1d4ed8;">
+        <option value="">Variant select karo</option>
+        ${item.variants.map((v,vi) => `<option value="${vi}" ${item.inventory_id===v.id?'selected':''}>${v.name} - Rs. ${v.price} - Stock ${v.stock}</option>`).join('')}
+      </select>` : '';
+    return `
+    <tr style="border-bottom:1px solid #f1f5f9;">
+      <td style="padding:9px 8px;min-width:190px;">
+        <input type="text" value="${item.item || ''}" onchange="setMultiItemName(${i}, this.value)"
+          style="width:100%;padding:5px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px;flex:unset;">
+        ${variantSelect}
+        ${item.variants && item.variants.length > 1 ? '<span class="badge badge-blue" style="margin-top:5px;font-size:10px;">Variant optional</span>' : ''}
+        ${!item.found && !item.needs_variant ? '<span class="badge badge-amber" style="margin-top:5px;font-size:10px;">Manual</span>' : ''}
+      </td>
+      <td style="padding:9px 8px;text-align:center;">
+        <input type="number" value="${item.quantity}" min="0" step="0.01"
+          style="width:70px;padding:5px;border:1.5px solid #e2e8f0;border-radius:6px;text-align:center;font-size:13px;flex:unset;"
+          oninput="updateMultiItem(${i}, 'quantity', this.value)">
+      </td>
+      <td style="padding:9px 8px;text-align:right;">
+        <input type="number" value="${item.price || ''}" min="0" step="0.01"
+          style="width:90px;padding:5px;border:1.5px solid ${item.found?'#e2e8f0':'#fde68a'};border-radius:6px;text-align:right;font-size:13px;flex:unset;"
+          oninput="updateMultiItem(${i}, 'price', this.value)" placeholder="Price">
+      </td>
+      <td style="padding:9px 8px;text-align:right;font-weight:700;color:#1e293b;" id="multi-item-total-${i}">Rs. ${item.total}</td>
+      <td style="padding:9px 8px;text-align:center;">
+        ${item.stock !== null && item.stock !== undefined
+          ? `<span class="badge ${item.stock > 0 ? 'badge-green' : 'badge-red'}">${item.stock > 0 ? item.stock : '0'}</span>`
+          : '<span class="badge badge-blue">-</span>'}
+      </td>
+      <td style="padding:9px 8px;text-align:center;"><button class="del-btn" onclick="removeMultiItem(${i})">x</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('multi-grand-total').textContent = `Rs. ${multiParsedData.grand_total}`;
+}
+
+async function parseMultiEntry() {
+  const text = document.getElementById('multi-input').value.trim();
+  if (!text) return;
+  const btn = document.getElementById('multi-btn');
+  btn.disabled = true; btn.textContent = 'AI soch raha hai...';
+  try {
+    const res = await apiFetch('/entry/multi/parse', {method:'POST', body:JSON.stringify({text})});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    multiParsedData = data;
+    document.getElementById('multi-customer').value = data.customer || '';
+    renderMultiTable();
+    document.getElementById('multi-result').classList.add('show');
+  } catch(e) { showToast('Server se connection nahi hua','error'); }
+  btn.disabled = false; btn.textContent = 'Parse karo';
+}
+
+function updateMultiItem(index, field, value) {
+  if (!multiParsedData) return;
+  multiParsedData.items[index][field] = parseFloat(value) || 0;
+  recalcMultiTotals();
+  const totalEl = document.getElementById(`multi-item-total-${index}`);
+  if (totalEl) totalEl.textContent = `Rs. ${multiParsedData.items[index].total}`;
+  document.getElementById('multi-grand-total').textContent = `Rs. ${multiParsedData.grand_total}`;
+}
+
+function setMultiItemName(index, value) {
+  if (!multiParsedData) return;
+  const item = multiParsedData.items[index];
+  item.item = value.trim();
+  item.inventory_id = null;
+  item.stock = null;
+  item.found = false;
+  item.needs_variant = false;
+}
+
+function selectMultiVariant(index, variantIndex) {
+  if (!multiParsedData || variantIndex === '') return;
+  const item = multiParsedData.items[index];
+  const variant = item.variants[parseInt(variantIndex, 10)];
+  if (!variant) return;
+  item.item = variant.name;
+  item.price = variant.price;
+  item.stock = variant.stock;
+  item.inventory_id = variant.id;
+  item.found = true;
+  item.needs_variant = false;
+  renderMultiTable();
+}
+
+function removeMultiItem(index) {
+  if (!multiParsedData) return;
+  multiParsedData.items.splice(index, 1);
+  renderMultiTable();
+}
+
+function addManualItem() {
+  if (!multiParsedData) {
+    multiParsedData = {customer:'', items:[], grand_total:0};
+    document.getElementById('multi-result').classList.add('show');
+  }
+  multiParsedData.items.push({item:'', quantity:1, price:0, total:0, found:false, stock:null, inventory_id:null, variants:[], needs_variant:false});
+  renderMultiTable();
+}
+
+async function saveMultiEntry() {
+  if (!multiParsedData || !multiParsedData.items.length) { showToast('Koi item nahi!','error'); return; }
+  const customer = document.getElementById('multi-customer').value.trim();
+  if (!customer) { showToast('Customer naam daalo!','error'); return; }
+  recalcMultiTotals();
+  const missingItem = multiParsedData.items.find(i => !i.item || !i.quantity || i.quantity <= 0);
+  if (missingItem) { showToast('Har row mein item aur quantity daalo!','error'); return; }
+  const missingPrice = multiParsedData.items.find(i => !i.price || i.price <= 0);
+  if (missingPrice) { showToast(`${missingPrice.item} ka price daalo!`,'error'); return; }
+
+  try {
+    const payloadItems = multiParsedData.items.map(i => ({
+      item: i.item,
+      quantity: i.quantity,
+      price: i.price,
+      inventory_id: i.inventory_id || null,
+      found: !!i.found
+    }));
+    const res = await apiFetch('/entry/multi/save', {
+      method:'POST',
+      body:JSON.stringify({
+        text: document.getElementById('multi-input').value.trim(),
+        customer,
+        items: payloadItems
+      })
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    multiParsedData.customer = customer;
+    showToast(`${data.items_saved} items save! Total: Rs. ${data.grand_total}`);
+    printBill();
+    cancelMultiEntry();
+  } catch(e) { showToast('Save nahi hua','error'); }
+}
+
+function printBill() {
+  if (!multiParsedData) return;
+  recalcMultiTotals();
+  const customer = toTitleCase(document.getElementById('multi-customer')?.value || multiParsedData.customer || 'Customer');
+  const shopName = toTitleCase(getShopName() || 'Dukaan AI');
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-PK');
+  const timeStr = now.toLocaleTimeString('en-PK', {hour:'2-digit', minute:'2-digit'});
+
+  const billWindow = window.open('', '_blank', 'width=360,height=640');
+  billWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Receipt - ${customer}</title>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        @page { size: 80mm auto; margin: 3mm; }
+        body {
+          width: 72mm;
+          margin: 0 auto;
+          padding: 3mm 2mm;
+          font-family: 'Courier New', monospace;
+          font-size: 11px;
+          color: #111;
+          background: #fff;
+        }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .shop { font-size: 15px; line-height: 1.2; }
+        .meta { font-size: 10px; line-height: 1.45; }
+        .line { border-top: 1px dashed #111; margin: 6px 0; }
+        .double-line { border-top: 2px solid #111; margin: 7px 0; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        td, th { padding: 2px 0; vertical-align: top; }
+        th { font-size: 10px; text-align: left; }
+        .item { width: 42%; word-break: break-word; }
+        .qty { width: 14%; text-align: right; }
+        .rate { width: 20%; text-align: right; }
+        .amt { width: 24%; text-align: right; }
+        .total-row td { font-weight: bold; font-size: 13px; padding-top: 4px; }
+        .no-print { margin-top: 10px; }
+        .print-btn { padding: 8px 18px; background:#1e293b; color:white; border:none; border-radius:6px; cursor:pointer; font-size:13px; }
+        @media print {
+          body { width: 72mm; padding: 0; }
+          .no-print { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="center bold shop">${shopName}</div>
+      <div class="center meta">Karyana Shop Receipt</div>
+      <div class="double-line"></div>
+      <div class="meta">Date: ${dateStr}</div>
+      <div class="meta">Time: ${timeStr}</div>
+      <div class="meta">Customer: <span class="bold">${customer}</span></div>
+      <div class="line"></div>
+      <table>
+        <thead>
+          <tr><th class="item">Item</th><th class="qty">Qty</th><th class="rate">Rate</th><th class="amt">Total</th></tr>
+        </thead>
+        <tbody>
+          ${multiParsedData.items.map(item => `
+            <tr>
+              <td class="item">${toTitleCase(item.item)}</td>
+              <td class="qty">${item.quantity}</td>
+              <td class="rate">${item.price}</td>
+              <td class="amt">${item.total}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="4"><div class="line"></div></td></tr>
+          <tr class="total-row"><td colspan="3">TOTAL</td><td class="amt">Rs. ${multiParsedData.grand_total}</td></tr>
+        </tfoot>
+      </table>
+      <div class="double-line"></div>
+      <div class="center meta">Shukriya! Dobara zaroor aana</div>
+      <div class="center meta">Powered by Dukaan AI</div>
+      <div class="center no-print"><button class="print-btn" onclick="window.print()">Print Receipt</button></div>
+      <scr'+'ipt>setTimeout(() => window.print(), 500);</scr'+'ipt>
+    </body>
+    </html>
+  `);
+  billWindow.document.close();
+}
+
+function cancelMultiEntry() {
+  document.getElementById('multi-input').value = '';
+  document.getElementById('multi-result').classList.remove('show');
+  multiParsedData = null;
+}
+
+// ---- Khaata ----
+async function getKhaata() {
+  const name = document.getElementById('khaata-input').value.trim();
+  if (!name) return;
+  try {
+    const res = await apiFetch(`/khaata/${name}`);
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    document.getElementById('khaata-entries').innerHTML = data.entries.map(e => `
+      <div class="entry-row">
+        <span style="color:#64748b;font-size:12px;">${e.date}</span>
+        <span style="font-weight:500;">${e.item==='PAYMENT'?'💰 Payment':e.item}</span>
+        <span>${e.item==='PAYMENT'?'—':'x'+e.quantity}</span>
+        <span class="action-btns">
+          <span style="color:${e.total<0?'#16a34a':'#1e293b'};font-weight:600;">Rs. ${Math.abs(e.total)} ${e.total<0?'✓':''}</span>
+          ${e.item!=='PAYMENT'?`<button class="edit-btn" onclick="editEntry(${e.id},'${e.item}',${e.quantity},${e.price},'${e.date}')">✏️</button>`:''}
+          <button class="del-btn" onclick="deleteEntry(${e.id})">🗑️</button>
+        </span>
+      </div>`).join('');
+    document.getElementById('khaata-total').textContent = `Rs. ${data.total_baaki}`;
+    const tb = document.getElementById('khaata-total-bar');
+    tb.className = `total-bar ${data.total_baaki<=0?'success':''}`;
+    document.getElementById('khaata-result').classList.add('show');
+  } catch(e) { showToast('Server error','error'); }
+}
+
+// ---- All Customers ----
+async function getAllCustomers() {
+  try {
+    const res = await apiFetch('/customers/all');
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    document.getElementById('all-customers-list').innerHTML = data.customers.map(c => `
+      <div class="entry-row">
+        <span onclick="viewCustomer('${c.name}')" style="cursor:pointer;color:#6366f1;font-weight:600;">${c.name}</span>
+        <span style="color:#64748b;">${c.phone}</span>
+        <span style="color:#64748b;">${c.total_entries} entries</span>
+        <span class="action-btns">
+          <span style="font-weight:700;color:${c.total_baaki>0?'#dc2626':'#16a34a'};">Rs. ${c.total_baaki}</span>
+          <button class="edit-btn" onclick="editCustomer('${c.name}','${c.phone}')">✏️</button>
+          <button class="del-btn" onclick="deleteCustomer('${c.name}')">🗑️</button>
+        </span>
+      </div>`).join('');
+    document.getElementById('grand-total').textContent = `Rs. ${data.grand_total}`;
+  } catch(e) { showToast('Customers load nahi hue','error'); }
+}
+
+function viewCustomer(name) {
+  document.getElementById('khaata-input').value = name.toLowerCase();
+  showPage('khaata'); getKhaata();
+}
+
+async function deleteCustomer(name) {
+  if (!confirm(`⚠️ ${name} aur uski saari entries delete ho jaayengi!`)) return;
+  try {
+    const res = await apiFetch(`/customer/${name}`, {method:'DELETE'});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    showToast(`🗑️ ${name} delete ho gaya!`);
+    getAllCustomers();
+  } catch(e) { showToast('Delete nahi hua','error'); }
+}
+
+function editCustomer(name, phone) {
+  document.getElementById('edit-customer-old').value=name;
+  document.getElementById('edit-customer-name').value=name;
+  document.getElementById('edit-customer-phone').value=phone;
+  openModal('customer-modal');
+}
+
+async function saveCustomerEdit() {
+  const oldName=document.getElementById('edit-customer-old').value;
+  const newName=document.getElementById('edit-customer-name').value.trim();
+  const newPhone=document.getElementById('edit-customer-phone').value.trim();
+  if (!newName||!newPhone) { showToast('Naam aur phone zaroori!','error'); return; }
+  try {
+    const res=await apiFetch('/customer/edit',{method:'PUT',body:JSON.stringify({old_name:oldName,new_name:newName,new_phone:newPhone})});
+    const data=await res.json();
+    if(data.error){showToast(data.error,'error');return;}
+    showToast(`✅ ${newName} update ho gaya!`);
+    closeModal('customer-modal'); getAllCustomers();
+  } catch(e){showToast('Update nahi hua','error');}
+}
+
+async function deleteEntry(entryId) {
+  if (!confirm(`Entry #${entryId} delete karna chahte ho?`)) return;
+  try {
+    const res=await apiFetch(`/entry/${entryId}`,{method:'DELETE'});
+    const data=await res.json();
+    if(data.error){showToast(data.error,'error');return;}
+    showToast(`🗑️ Entry delete ho gayi!`);
+    const name=document.getElementById('khaata-input').value.trim();
+    if(name)getKhaata();
+  } catch(e){showToast('Delete nahi hua','error');}
+}
+
+function editEntry(id,item,qty,price,date) {
+  document.getElementById('edit-entry-id').value=id;
+  document.getElementById('edit-entry-item').value=item;
+  document.getElementById('edit-entry-qty').value=qty;
+  document.getElementById('edit-entry-price').value=price;
+  document.getElementById('edit-entry-date').value=date;
+  openModal('entry-modal');
+}
+
+async function saveEntryEdit() {
+  const id=document.getElementById('edit-entry-id').value;
+  const item=document.getElementById('edit-entry-item').value.trim();
+  const qty=parseFloat(document.getElementById('edit-entry-qty').value);
+  const price=parseFloat(document.getElementById('edit-entry-price').value);
+  const date=document.getElementById('edit-entry-date').value;
+  if(!item||!qty||!price||!date){showToast('Sab fields bharo!','error');return;}
+  try {
+    const res=await apiFetch('/entry/edit',{method:'PUT',body:JSON.stringify({entry_id:parseInt(id),item_name:item,quantity:qty,price_per_item:price,date})});
+    const data=await res.json();
+    if(data.error){showToast(data.error,'error');return;}
+    showToast('✅ Entry update ho gayi!');
+    closeModal('entry-modal');
+    const name=document.getElementById('khaata-input').value.trim();
+    if(name)getKhaata();
+  } catch(e){showToast('Update nahi hua','error');}
+}
+
+// ---- Inventory Check ----
+async function checkInventory() {
+  const item=document.getElementById('inv-input').value.trim();
+  if(!item)return;
+  try {
+    const res=await apiFetch(`/inventory/${item}`);
+    const data=await res.json();
+    if(data.error){showToast(data.error,'error');return;}
+    document.getElementById('inv-name').textContent=data.name;
+    document.getElementById('inv-price').textContent=`Rs. ${data.price}`;
+    document.getElementById('inv-stock').innerHTML=`<span class="badge ${data.stock>0?'badge-green':'badge-red'}">${data.stock>0?data.stock+' baaki':'Out of stock'}</span>`;
+    document.getElementById('inv-result').classList.add('show');
+  } catch(e){showToast('Server error','error');}
+}
+
+// ---- Inventory Management ----
+async function loadInventory() {
+  try {
+    const res=await apiFetch('/inventory/all');
+    const data=await res.json();
+    if(data.error)return;
+    allInventoryItems=data.items;
+    const outOfStock=data.items.filter(i=>i.stock<=0).length;
+    document.getElementById('inv-total-items').textContent=data.total;
+    document.getElementById('inv-low-stock').textContent=data.low_stock_count;
+    document.getElementById('inv-out-stock').textContent=outOfStock;
+    renderInventoryTable(data.items);
+  } catch(e){}
+}
+
+function renderInventoryTable(items) {
+  const tbody=document.getElementById('inv-tbody');
+  if(!items.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">Koi item nahi mila</td></tr>';return;}
+  tbody.innerHTML=items.map(item=>`
+    <tr>
+      <td style="font-weight:600;color:#1e293b;">${item.name}</td>
+      <td style="color:#64748b;">${item.category||'—'}</td>
+      <td style="color:#16a34a;font-weight:600;">Rs. ${item.price}</td>
+      <td style="color:#64748b;">Rs. ${item.purchase_rate||0}</td>
+      <td><span class="badge ${item.stock<=0?'badge-red':item.low_stock?'badge-amber':'badge-green'}">${item.stock<=0?'❌ '+item.stock:item.low_stock?'⚠️ '+item.stock:'✅ '+item.stock}</span></td>
+      <td style="color:#64748b;">${item.reorder_level}</td>
+      <td><div class="action-btns"><button class="edit-btn" onclick="editItem(${item.id})">✏️</button><button class="del-btn" onclick="deleteInventoryItem(${item.id},'${item.name.replace(/'/g,"\\'")}')">🗑️</button></div></td>
+    </tr>`).join('');
+}
+
+function filterInventory() {
+  const s=document.getElementById('inv-search-input').value.toLowerCase();
+  renderInventoryTable(s?allInventoryItems.filter(i=>i.name.toLowerCase().includes(s)||(i.category||'').toLowerCase().includes(s)):allInventoryItems);
+}
+
+function showAddItemModal() {
+  document.getElementById('item-modal-title').textContent='📦 Naya Item Add karo';
+  document.getElementById('item-modal-id').value='';
+  ['item-name-input','item-category-input','item-price-input','item-purchase-input'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('item-stock-input').value='0';
+  document.getElementById('item-reorder-input').value='5';
+  document.getElementById('item-save-btn').textContent='✓ Add karo';
+  openModal('item-modal');
+}
+
+function editItem(itemId) {
+  const item=allInventoryItems.find(i=>i.id===itemId);
+  if(!item)return;
+  document.getElementById('item-modal-title').textContent='✏️ Item Edit karo';
+  document.getElementById('item-modal-id').value=item.id;
+  document.getElementById('item-name-input').value=item.name;
+  document.getElementById('item-category-input').value=item.category||'';
+  document.getElementById('item-price-input').value=item.price;
+  document.getElementById('item-purchase-input').value=item.purchase_rate||0;
+  document.getElementById('item-stock-input').value=item.stock;
+  document.getElementById('item-reorder-input').value=item.reorder_level;
+  document.getElementById('item-save-btn').textContent='✓ Update karo';
+  openModal('item-modal');
+}
+
+async function saveItem() {
+  const id=document.getElementById('item-modal-id').value;
+  const name=document.getElementById('item-name-input').value.trim();
+  const category=document.getElementById('item-category-input').value.trim();
+  const price=parseFloat(document.getElementById('item-price-input').value);
+  const purchase=parseFloat(document.getElementById('item-purchase-input').value)||0;
+  const stock=parseFloat(document.getElementById('item-stock-input').value)||0;
+  const reorder=parseInt(document.getElementById('item-reorder-input').value)||5;
+  if(!name||!price){showToast('Item naam aur price zaroori!','error');return;}
+  const body={item_name:name,sale_price:price,purchase_rate:purchase,stock,category,reorder_level:reorder};
+  try {
+    const res=id
+      ? await apiFetch('/inventory/edit',{method:'PUT',body:JSON.stringify({item_id:parseInt(id),...body})})
+      : await apiFetch('/inventory/add',{method:'POST',body:JSON.stringify(body)});
+    const data=await res.json();
+    if(data.error){showToast(data.error,'error');return;}
+    showToast(id?'✅ Item update ho gaya!':'✅ Item add ho gaya!');
+    closeModal('item-modal'); loadInventory();
+  } catch(e){showToast('Save nahi hua','error');}
+}
+
+async function deleteInventoryItem(itemId,itemName) {
+  if(!confirm(`'${itemName}' delete karna chahte ho?`))return;
+  try {
+    const res=await apiFetch(`/inventory/item/${itemId}`,{method:'DELETE'});
+    const data=await res.json();
+    if(data.error){showToast(data.error,'error');return;}
+    showToast(`🗑️ ${itemName} delete ho gaya!`);
+    loadInventory();
+  } catch(e){showToast('Delete nahi hua','error');}
+}
+
+// ---- Purchase ----
+async function parsePurchase() {
+  const text=document.getElementById('purchase-input').value.trim();
+  if(!text)return;
+  const btn=document.getElementById('purchase-btn');
+  btn.disabled=true; btn.textContent='AI soch raha hai...';
+  try {
+    const res=await apiFetch('/purchase/parse',{method:'POST',body:JSON.stringify({text})});
+    const data=await res.json();
+    document.getElementById('p-supplier').textContent=data.supplier||'Unknown';
+    document.getElementById('p-item').textContent=data.item||'—';
+    document.getElementById('p-qty').textContent=data.quantity||'—';
+    document.getElementById('p-rate').textContent=`Rs. ${data.rate||0} ${data.auto_divided?'(auto)':''}`;
+    document.getElementById('p-total').textContent=`Rs. ${data.total_given>0?data.total_given:((data.quantity||0)*(data.rate||0)).toFixed(0)}`;
+    document.getElementById('p-sale').textContent=data.sale_price?`Rs. ${data.sale_price}`:'Inventory mein nahi mila';
+    document.getElementById('p-stock').innerHTML=data.current_stock!==undefined?`<span class="badge ${data.current_stock>0?'badge-green':'badge-red'}">${data.current_stock} baaki</span>`:'<span class="badge badge-blue">—</span>';
+    document.getElementById('purchase-result').classList.add('show');
+  } catch(e){showToast('Server se connection nahi hua','error');}
+  btn.disabled=false; btn.textContent='Parse karo';
+}
+
+async function savePurchase() {
+  const text=document.getElementById('purchase-input').value.trim();
+  try {
+    const res=await apiFetch('/purchase/save',{method:'POST',body:JSON.stringify({text})});
+    const data=await res.json();
+    if(data.error){showToast(data.error,'error');return;}
+    showToast(`✅ Purchase saved! Total: Rs. ${data.total_cost}`);
+    cancelPurchase(); loadInventory();
+  } catch(e){showToast('Save nahi hua','error');}
+}
+
+function cancelPurchase() {
+  document.getElementById('purchase-input').value='';
+  document.getElementById('purchase-result').classList.remove('show');
+}
+
+async function getPurchaseHistory() {
+  try {
+    const res=await apiFetch('/purchases/all');
+    const data=await res.json();
+    if(data.error){showToast(data.error,'error');return;}
+    document.getElementById('purchase-history-list').innerHTML=data.purchases.map(p=>`
+      <div class="entry-row">
+        <span style="color:#64748b;font-size:12px;">${p.date}</span>
+        <span style="font-weight:500;">${p.item}<br><small style="color:#94a3b8;">${p.supplier}</small></span>
+        <span style="color:#64748b;">x${p.quantity} @ Rs.${p.rate}</span>
+        <span class="action-btns">
+          <span style="font-weight:700;">Rs. ${p.total}</span>
+          <button class="edit-btn" onclick="editPurchase(${p.id},'${p.supplier}','${p.item}',${p.quantity},${p.rate},'${p.date}')">✏️</button>
+          <button class="del-btn" onclick="deletePurchase(${p.id})">🗑️</button>
+        </span>
+      </div>`).join('');
+    document.getElementById('purchase-grand-total').textContent=`Rs. ${data.grand_total.toFixed(2)}`;
+  } catch(e){showToast('History load nahi hui','error');}
+}
+
+function editPurchase(id,supplier,item,qty,rate,date) {
+  document.getElementById('edit-purchase-id').value=id;
+  document.getElementById('edit-purchase-supplier').value=supplier;
+  document.getElementById('edit-purchase-item').value=item;
+  document.getElementById('edit-purchase-qty').value=qty;
+  document.getElementById('edit-purchase-rate').value=rate;
+  document.getElementById('edit-purchase-date').value=date;
+  openModal('purchase-modal');
+}
+
+async function savePurchaseEdit() {
+  const id=document.getElementById('edit-purchase-id').value;
+  const supplier=document.getElementById('edit-purchase-supplier').value.trim();
+  const item=document.getElementById('edit-purchase-item').value.trim();
+  const qty=parseFloat(document.getElementById('edit-purchase-qty').value);
+  const rate=parseFloat(document.getElementById('edit-purchase-rate').value);
+  const date=document.getElementById('edit-purchase-date').value;
+  if(!supplier||!item||!qty||!rate||!date){showToast('Sab fields bharo!','error');return;}
+  try {
+    const res=await apiFetch('/purchase/edit',{method:'PUT',body:JSON.stringify({purchase_id:parseInt(id),supplier_name:supplier,item_name:item,quantity:qty,purchase_rate:rate,date})});
+    const data=await res.json();
+    if(data.error){showToast(data.error,'error');return;}
+    showToast('✅ Purchase update ho gaya!');
+    closeModal('purchase-modal'); getPurchaseHistory();
+  } catch(e){showToast('Update nahi hua','error');}
+}
+
+async function deletePurchase(id) {
+  if(!confirm(`Purchase #${id} delete karna chahte ho?`))return;
+  try {
+    const res=await apiFetch(`/purchase/${id}`,{method:'DELETE'});
+    const data=await res.json();
+    if(data.error){showToast(data.error,'error');return;}
+    showToast('🗑️ Purchase delete ho gaya!');
+    getPurchaseHistory();
+  } catch(e){showToast('Delete nahi hua','error');}
+}
+</script>
+</body>
+</html>
