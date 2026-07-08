@@ -745,6 +745,35 @@ def save_multi(req: MultiEntrySaveRequest, authorization: Optional[str] = Header
     }
 
 # ---- WhatsApp ----
+class SetPhoneRequest(BaseModel):
+    customer: str
+    phone: str
+    resend_message: str = ""   # if provided, returns new wa link with same message
+
+@app.post("/customer/set-phone")
+def set_customer_phone(req: SetPhoneRequest, authorization: Optional[str] = Header(None)):
+    """Phone save karta hai customer ke record mein, aur agar resend_message diya ho
+    toh naya wa.me link wapas karta hai — dialog se save karke direct WhatsApp kholne ke liye."""
+    shop_id = get_shop_id(authorization)
+    if not shop_id:
+        return {"error": "Login zaroori hai"}
+    from customers import get_customer
+    customer = get_customer(req.customer, shop_id)
+    if not customer:
+        # Customer exist nahi karta — bana do
+        add_customer(req.customer, req.phone, shop_id)
+    else:
+        with get_connection() as conn:
+            conn.execute(
+                text("UPDATE customers SET phone=:p WHERE customer_id=:cid AND shop_id=:sid"),
+                {"p": req.phone.strip(), "cid": customer[0], "sid": shop_id}
+            )
+            conn.commit()
+    result = {"success": True, "customer": req.customer, "phone": req.phone}
+    if req.resend_message:
+        result["whatsapp"] = build_whatsapp_payload(req.phone, req.resend_message)
+    return result
+
 class ReminderRequest(BaseModel):
     customer: str
 

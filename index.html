@@ -646,6 +646,25 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
   </div><!-- end app-body -->
 </div><!-- end app -->
 
+
+<!-- WhatsApp Phone Request Modal -->
+<div id="wa-phone-modal" class="modal">
+  <div class="modal-box" style="width:380px;">
+    <h3>📱 Phone Number Chahiye</h3>
+    <p id="wa-phone-modal-name" style="font-size:14px;color:#64748b;margin:4px 0 12px;"></p>
+    <div class="modal-field" style="grid-column:span 2;">
+      <label>WhatsApp Number</label>
+      <input type="tel" id="wa-phone-modal-input" placeholder="03001234567" style="padding:10px;font-size:15px;">
+      <small style="color:#94a3b8;font-size:11px;">Pakistan format: 03XXXXXXXXX ya +923XXXXXXXXX</small>
+    </div>
+    <div class="modal-btns" style="margin-top:14px;">
+      <button class="btn-primary" onclick="saveWaPhoneAndSend()">✓ Save & WhatsApp</button>
+      <button class="btn-outline" onclick="skipWaPhone()">Skip (bina save)</button>
+      <button class="btn-danger" onclick="closeModal('wa-phone-modal')">✕ Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- WhatsApp send banner -->
 <div class="wa-banner" id="wa-banner">
   <span id="wa-banner-text">Receipt tayyar hai</span>
@@ -1025,7 +1044,7 @@ async function saveEntry() {
     const data = await res.json();
     if (data.error) { showToast(data.error,'error'); return; }
     showToast(`${data.type==='payment'?'Payment':'Entry'}: ${data.data?.customer} - ${data.data?.item} save ho gaya!`);
-    showWhatsAppPrompt(data.whatsapp, data.type==='payment' ? 'Payment receipt tayyar hai —' : 'Receipt tayyar hai —');
+    showWhatsAppPrompt(data.whatsapp, data.type==='payment' ? 'Payment receipt tayyar hai —' : 'Receipt tayyar hai —', data.data?.customer);
     cancelEntry();
   } catch(e) { showToast('Save nahi hua','error'); }
 }
@@ -1185,7 +1204,7 @@ async function saveMultiEntry() {
     if (data.error) { showToast(data.error,'error'); return; }
     multiParsedData.customer = customer;
     showToast(`${data.items_saved} items save! Total: Rs. ${data.grand_total}`);
-    showWhatsAppPrompt(data.whatsapp, 'Bill receipt tayyar hai —');
+    showWhatsAppPrompt(data.whatsapp, 'Bill receipt tayyar hai —', data.customer);
     printBill();
     cancelMultiEntry();
   } catch(e) { showToast('Save nahi hua','error'); }
@@ -1613,18 +1632,58 @@ async function deletePurchase(id) {
 // ================= WhatsApp + Reports =================
 let waBannerTimer = null;
 
-function showWhatsAppPrompt(wa, label) {
+let waPendingContext = null;  // {customer, message} — modal complete hone ke baad use hota hai
+
+function showWhatsAppPrompt(wa, label, customerName) {
   if (!wa || !wa.link) return;
   if (wa.auto_sent) { showToast('📱 WhatsApp message customer ko bhej diya gaya!'); return; }
+  if (!wa.phone_valid && customerName) {
+    // Phone missing — dialog dikhao, banner nahi
+    waPendingContext = {customer: customerName, message: wa.message, fallbackLink: wa.link};
+    document.getElementById('wa-phone-modal-name').textContent = `${customerName.charAt(0).toUpperCase()+customerName.slice(1)} ka contact save nahi hai — abhi daal do?`;
+    document.getElementById('wa-phone-modal-input').value = '';
+    openModal('wa-phone-modal');
+    setTimeout(() => document.getElementById('wa-phone-modal-input').focus(), 100);
+    return;
+  }
   const banner = document.getElementById('wa-banner');
   document.getElementById('wa-banner-text').textContent = label || 'Receipt tayyar hai —';
   document.getElementById('wa-banner-link').href = wa.link;
   banner.classList.add('show');
   clearTimeout(waBannerTimer);
   waBannerTimer = setTimeout(hideWaBanner, 30000);
-  if (!wa.phone_valid) {
-    document.getElementById('wa-banner-text').textContent = 'Phone number nahi mila — contact khud select karna hoga';
+}
+
+async function saveWaPhoneAndSend() {
+  if (!waPendingContext) { closeModal('wa-phone-modal'); return; }
+  const phone = document.getElementById('wa-phone-modal-input').value.trim();
+  if (!phone || phone.length < 10) { showToast('Valid phone number daalo','error'); return; }
+  try {
+    const res = await apiFetch('/customer/set-phone', {method:'POST', body:JSON.stringify({
+      customer: waPendingContext.customer,
+      phone: phone,
+      resend_message: waPendingContext.message
+    })});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    closeModal('wa-phone-modal');
+    if (data.whatsapp && data.whatsapp.link) {
+      window.open(data.whatsapp.link, '_blank');
+      showToast(`📱 Phone save ho gaya + WhatsApp khul raha hai`);
+    } else {
+      showToast('Phone save ho gaya');
+    }
+    waPendingContext = null;
+  } catch(e) { showToast('Save nahi hua','error'); }
+}
+
+function skipWaPhone() {
+  // Bina save kiye — sirf plain wa.me link kholo, user khud contact chunega
+  if (waPendingContext && waPendingContext.fallbackLink) {
+    window.open(waPendingContext.fallbackLink, '_blank');
   }
+  closeModal('wa-phone-modal');
+  waPendingContext = null;
 }
 function hideWaBanner() {
   document.getElementById('wa-banner').classList.remove('show');
@@ -1636,6 +1695,15 @@ async function sendReminder(name) {
     const data = await res.json();
     if (data.error) { showToast(data.error,'error'); return; }
     if (data.whatsapp.auto_sent) { showToast(`📱 ${name} ko reminder bhej diya!`); return; }
+    if (!data.whatsapp.phone_valid) {
+      // Phone missing — dialog
+      waPendingContext = {customer: name, message: data.whatsapp.message, fallbackLink: data.whatsapp.link};
+      document.getElementById('wa-phone-modal-name').textContent = `${name.charAt(0).toUpperCase()+name.slice(1)} ka contact save nahi hai — abhi daal do?`;
+      document.getElementById('wa-phone-modal-input').value = '';
+      openModal('wa-phone-modal');
+      setTimeout(() => document.getElementById('wa-phone-modal-input').focus(), 100);
+      return;
+    }
     window.open(data.whatsapp.link, '_blank');
   } catch(e) { showToast('Reminder nahi bana','error'); }
 }
@@ -1665,6 +1733,19 @@ async function loadBulkReminders() {
 function openReminder(i) {
   const r = waReminders[i];
   if (!r) return;
+  if (!r.phone_valid) {
+    // Phone missing — dialog, aur save hone ke baad list refresh
+    waPendingContext = {
+      customer: r.customer.toLowerCase(),
+      message: r.message || '',  // bulk endpoint message wapas karta hai? Nahi — sendReminder call karo
+      fallbackLink: r.link,
+      _bulkIndex: i
+    };
+    // Bulk endpoint message string wapas nahi karta, sirf link — proper reminder message chahiye
+    // Isliye sendReminder wala flow use karo jo backend se message + link dono deta hai
+    sendReminder(r.customer.toLowerCase());
+    return;
+  }
   window.open(r.link, '_blank');
   const btn = document.getElementById(`wa-btn-${i}`);
   if (btn) { btn.disabled = true; btn.textContent = '✅ Khula'; }
