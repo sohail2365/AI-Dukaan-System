@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dukaan AI</title>
 <style>
+:root{color-scheme:light;}
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;}
+body{font-family:'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;color:#1e293b;}
 
 /* ---- LOGIN PAGE ---- */
 .login-page{display:none;min-height:100vh;background:linear-gradient(135deg,#1e293b 0%,#334155 50%,#1e293b 100%);align-items:center;justify-content:center;}
@@ -41,8 +42,8 @@ body{font-family:'Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh;}
 .topbar-shop{font-size:12px;color:#94a3b8;background:#334155;padding:4px 10px;border-radius:20px;}
 .topbar-right{display:flex;align-items:center;gap:12px;}
 .datetime-box{text-align:right;}
-.datetime-date{font-size:12px;color:#94a3b8;}
-.datetime-time{font-size:16px;font-weight:600;color:#e2e8f0;font-variant-numeric:tabular-nums;}
+.datetime-date{font-size:12px;color:#ffffff !important;opacity:0.85;}
+.datetime-time{font-size:16px;font-weight:600;color:#ffffff !important;font-variant-numeric:tabular-nums;}
 .topbar-btn{background:#334155;border:none;color:#e2e8f0;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;transition:background 0.2s;}
 .topbar-btn:hover{background:#475569;}
 .topbar-btn.danger{background:#dc2626;}
@@ -173,11 +174,11 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
 /* Calculator */
 .calc-panel{position:fixed;top:70px;right:16px;width:260px;background:white;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.2);z-index:999;overflow:hidden;display:none;}
 .calc-panel.show{display:block;}
-.calc-screen{background:#1e293b;color:white;padding:14px 16px;text-align:right;}
+.calc-screen{background:#1e293b;color:#ffffff !important;padding:14px 16px;text-align:right;}
 .calc-expr{font-size:12px;color:#64748b;min-height:16px;}
-.calc-display{font-size:30px;font-weight:300;margin-top:4px;word-break:break-all;}
+.calc-display{font-size:30px;font-weight:300;margin-top:4px;word-break:break-all;color:#ffffff !important;}
 .calc-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#e2e8f0;}
-.calc-btns button{padding:16px 0;font-size:15px;border:none;background:white;cursor:pointer;border-radius:0;transition:background 0.1s;}
+.calc-btns button{padding:16px 0;font-size:15px;border:none;background:white;color:#1e293b !important;cursor:pointer;border-radius:0;transition:background 0.1s;}
 .calc-btns button:hover{background:#f8fafc;}
 .cb-op{background:#f1f5f9 !important;color:#6366f1;font-weight:700;}
 .cb-eq{background:#6366f1 !important;color:white;font-weight:700;}
@@ -342,8 +343,13 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
         <div class="card">
           <div class="card-title"><span class="icon">🤖</span> AI Entry</div>
           <div class="input-row">
-            <input type="text" id="entry-input" placeholder="Likho: bilal ne brite 2 liya..." onkeydown="if(event.key==='Enter')parseEntry()">
+            <input type="text" id="entry-input" placeholder="Sale: 'bilal ne 2 brite liya'  ya  Payment: 'bilal ne 500 diye'" onkeydown="if(event.key==='Enter')parseEntry()">
             <button onclick="parseEntry()" id="parse-btn">Parse karo</button>
+          </div>
+          <div style="margin-top:8px;font-size:12px;color:#64748b;">
+            💡 <b>Payment record karna hai?</b> Likho <i>"customer_name ne X diye"</i> (jaise "asif traders ne 1000 diye")
+            &nbsp;•&nbsp;
+            <a href="#" onclick="openQuickPayment();return false;" style="color:#6366f1;font-weight:600;">Quick Payment karo</a>
           </div>
 
           <div class="result-box" id="parse-result">
@@ -681,6 +687,27 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
   </div><!-- end app-body -->
 </div><!-- end app -->
 
+
+<!-- Quick Payment Modal -->
+<div id="quick-pay-modal" class="modal">
+  <div class="modal-box" style="width:400px;">
+    <h3>💰 Quick Payment</h3>
+    <p style="font-size:13px;color:#64748b;margin:4px 0 14px;">Customer se paisay wapas mil gaye — record karo.</p>
+    <div class="modal-field" style="grid-column:span 2;">
+      <label>Customer Naam</label>
+      <input type="text" id="qp-customer" placeholder="jaise: asif traders" list="qp-customer-list" style="padding:10px;font-size:15px;">
+      <datalist id="qp-customer-list"></datalist>
+    </div>
+    <div class="modal-field" style="grid-column:span 2;margin-top:10px;">
+      <label>Amount (Rs.)</label>
+      <input type="number" id="qp-amount" min="1" step="1" placeholder="500" style="padding:10px;font-size:15px;">
+    </div>
+    <div class="modal-btns" style="margin-top:14px;">
+      <button class="btn-success" onclick="saveQuickPayment()">✓ Payment save karo</button>
+      <button class="btn-danger" onclick="closeModal('quick-pay-modal')">✕ Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- WhatsApp Phone Request Modal -->
 <div id="wa-phone-modal" class="modal">
@@ -1947,6 +1974,47 @@ async function purgeOldTrash() {
     showToast(`🔥 ${data.purged} entries permanently delete ho gayin`);
     loadTrash();
   } catch(e) { showToast('Purge fail','error'); }
+}
+
+// ---- Quick Payment ----
+async function openQuickPayment() {
+  // Pre-populate customer datalist from cache
+  const dl = document.getElementById('qp-customer-list');
+  if (dl) {
+    if (!allCustomersCache.length) {
+      try { await getAllCustomers(); } catch(_){}
+    }
+    dl.innerHTML = allCustomersCache.map(c => `<option value="${c.name.toLowerCase()}">`).join('');
+  }
+  document.getElementById('qp-customer').value = '';
+  document.getElementById('qp-amount').value = '';
+  openModal('quick-pay-modal');
+  setTimeout(() => document.getElementById('qp-customer').focus(), 100);
+}
+
+async function saveQuickPayment() {
+  const customer = document.getElementById('qp-customer').value.trim().toLowerCase();
+  const amount = parseFloat(document.getElementById('qp-amount').value);
+  if (!customer) { showToast('Customer naam daalo','error'); return; }
+  if (!amount || amount <= 0) { showToast('Valid amount daalo','error'); return; }
+
+  try {
+    const res = await apiFetch('/entry/save', {
+      method:'POST',
+      body: JSON.stringify({
+        text: '',
+        customer: customer,
+        item: 'PAYMENT',
+        quantity: 1,
+        price: amount
+      })
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    closeModal('quick-pay-modal');
+    showToast(`💰 Payment Rs. ${amount} save ho gayi ${customer.split(' ').map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ')} ke naam pe!`);
+    showWhatsAppPrompt(data.whatsapp, 'Payment receipt tayyar hai —', customer);
+  } catch(e) { showToast('Payment save nahi hui','error'); }
 }
 </script>
 </body>
