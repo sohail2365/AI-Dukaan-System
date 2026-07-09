@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from sqlalchemy import text
 from database import get_connection
+from logger import get_logger
+
+log = get_logger("dukaan.auth")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dukaan-ai-secret-key-2024")
 ALGORITHM = "HS256"
@@ -55,7 +58,7 @@ def register_shop(username: str, password: str, shop_name: str) -> dict:
         ).fetchone()
 
     token = create_token(shop[0], username)
-    print(f"New shop registered: {shop_name} ({username})")
+    log.info(f"New shop registered: {shop_name} ({username})")
     return {"success": True, "token": token, "shop_name": shop_name}
 
 def login_shop(username: str, password: str) -> dict:
@@ -69,7 +72,7 @@ def login_shop(username: str, password: str) -> dict:
         return {"error": "Username ya password galat hai"}
 
     token = create_token(shop[0], username)
-    print(f"Login: {shop[3]} ({username})")
+    log.info(f"Login: {shop[3]} ({username})")
     return {"success": True, "token": token, "shop_name": shop[3]}
 
 def verify_shop_identity(username: str, shop_name: str) -> bool:
@@ -94,5 +97,5 @@ def reset_password(username: str, shop_name: str, new_password: str) -> dict:
         )
         conn.commit()
 
-    print(f"Password reset: {username}")
+    log.info(f"Password reset: {username}")
     return {"success": True, "message": "Password reset ho gaya — ab login karo"}

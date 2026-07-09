@@ -1,6 +1,9 @@
 # customers.py — PostgreSQL version
 from sqlalchemy import text
 from database import get_connection
+from logger import get_logger
+
+log = get_logger("dukaan.customers")
 
 def get_customer(name: str, shop_id: int):
     with get_connection() as conn:
@@ -18,10 +21,10 @@ def add_customer(name: str, phone: str, shop_id: int) -> bool:
                 {"name": name.lower().strip(), "phone": phone.strip(), "shop_id": shop_id}
             )
             conn.commit()
-        print(f"Customer added: {name.title()}")
+        log.info(f"Customer added: {name.title()}")
         return True
     except Exception as e:
-        print(f"'{name}' already exists or error: {e}")
+        log.warning(f"Customer add failed for '{name}': {e}")
         return False
 
 def add_khaata_entry(customer_name: str, item_name: str,
@@ -49,7 +52,7 @@ def add_khaata_entry(customer_name: str, item_name: str,
             }
         )
         conn.commit()
-    print(f"Saved: {customer_name.title()} — {item_name} x{quantity} — Rs. {total}")
+    log.info(f"Khaata: {customer_name} {item_name} x{quantity} Rs.{total}")
     return True
 
 def show_customer_khaata(name: str, shop_id: int):

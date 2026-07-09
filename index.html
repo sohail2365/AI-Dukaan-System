@@ -299,6 +299,8 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
       </div>
       <div class="nav-item" onclick="showPage('whatsapp');loadBulkReminders()" id="nav-whatsapp">
         <span class="nav-icon">📱</span><span>WhatsApp Reminders</span>
+      </div>      <div class="nav-item" onclick="showPage('trash');loadTrash()" id="nav-trash">
+        <span class="nav-icon">🗑️</span><span>Trash</span>
       </div>
 
       <div class="nav-divider"></div>
@@ -475,6 +477,21 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
           </div>
           <button onclick="getAllCustomers()" class="btn-outline">🔄 Refresh</button>
         </div>
+        <div class="card" style="padding:12px;margin-bottom:12px;">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <input type="text" id="cust-search" placeholder="🔍 Naam ya phone se dhoondo..." oninput="renderFilteredCustomers()" style="flex:1;min-width:200px;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+            <label style="font-size:13px;color:#64748b;display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="cust-only-baaki" onchange="renderFilteredCustomers()"> Sirf baaki wale
+            </label>
+            <select id="cust-sort" onchange="renderFilteredCustomers()" style="padding:6px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
+              <option value="baaki_desc">Baaki (zyada pehle)</option>
+              <option value="baaki_asc">Baaki (kam pehle)</option>
+              <option value="name">Naam (A-Z)</option>
+              <option value="entries_desc">Entries (zyada pehle)</option>
+            </select>
+            <span id="cust-count" style="font-size:12px;color:#64748b;"></span>
+          </div>
+        </div>
         <div class="card">
           <div class="entry-row entry-header"><span>Customer</span><span>Phone</span><span>Entries</span><span>Total Baaki</span></div>
           <div id="all-customers-list"></div>
@@ -639,6 +656,27 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
             <h3 style="margin:0 0 10px;font-size:15px;">⚠️ Low Stock Items</h3>
             <div id="low-stock-list" style="font-size:14px;"></div>
           </div>
+        </div>
+      </div>
+
+
+      <!-- Trash / Deleted Entries -->
+      <div class="page" id="page-trash">
+        <div class="page-header">
+          <div>
+            <div class="page-title">🗑️ Trash — Deleted Entries</div>
+            <div class="page-subtitle">Last 30 days ki deleted entries yahan hain — restore ho sakti hain</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-outline" onclick="loadTrash()">🔄 Refresh</button>
+            <button class="btn-danger" onclick="purgeOldTrash()">🔥 Purani hatao</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="entry-row entry-header">
+            <span>Customer</span><span>Item</span><span>Amount</span><span>Delete hui</span><span>Action</span>
+          </div>
+          <div id="trash-list"></div>
         </div>
       </div>
 
@@ -1330,25 +1368,51 @@ async function getKhaata() {
 }
 
 // ---- All Customers ----
+let allCustomersCache = [];
+let allCustomersGrandTotal = 0;
+
 async function getAllCustomers() {
   try {
     const res = await apiFetch('/customers/all');
     const data = await res.json();
     if (data.error) { showToast(data.error,'error'); return; }
-    document.getElementById('all-customers-list').innerHTML = data.customers.map(c => `
-      <div class="entry-row">
-        <span onclick="viewCustomer('${c.name}')" style="cursor:pointer;color:#6366f1;font-weight:600;">${c.name}</span>
-        <span style="color:#64748b;">${c.phone}</span>
-        <span style="color:#64748b;">${c.total_entries} entries</span>
-        <span class="action-btns">
-          <span style="font-weight:700;color:${c.total_baaki>0?'#dc2626':'#16a34a'};">Rs. ${c.total_baaki}</span>
-          <button class="wa-btn" onclick="sendReminder('${c.name.toLowerCase()}')" title="WhatsApp reminder">📱</button>
-          <button class="edit-btn" onclick="editCustomer('${c.name}','${c.phone}')">✏️</button>
-          <button class="del-btn" onclick="deleteCustomer('${c.name}')">🗑️</button>
-        </span>
-      </div>`).join('');
-    document.getElementById('grand-total').textContent = `Rs. ${data.grand_total}`;
+    allCustomersCache = data.customers;
+    allCustomersGrandTotal = data.grand_total;
+    renderFilteredCustomers();
   } catch(e) { showToast('Customers load nahi hue','error'); }
+}
+
+function renderFilteredCustomers() {
+  const q = (document.getElementById('cust-search')?.value || '').toLowerCase().trim();
+  const onlyBaaki = document.getElementById('cust-only-baaki')?.checked;
+  const sort = document.getElementById('cust-sort')?.value || 'baaki_desc';
+
+  let list = allCustomersCache.filter(c => {
+    if (onlyBaaki && c.total_baaki <= 0) return false;
+    if (q && !c.name.toLowerCase().includes(q) && !(c.phone||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  list.sort((a,b) => {
+    if (sort === 'name') return a.name.localeCompare(b.name);
+    if (sort === 'baaki_asc') return a.total_baaki - b.total_baaki;
+    if (sort === 'entries_desc') return b.total_entries - a.total_entries;
+    return b.total_baaki - a.total_baaki;
+  });
+
+  document.getElementById('cust-count').textContent = `${list.length} of ${allCustomersCache.length}`;
+  document.getElementById('all-customers-list').innerHTML = list.map(c => `
+    <div class="entry-row">
+      <span onclick="viewCustomer('${c.name}')" style="cursor:pointer;color:#6366f1;font-weight:600;">${c.name}</span>
+      <span style="color:#64748b;">${c.phone}</span>
+      <span style="color:#64748b;">${c.total_entries} entries</span>
+      <span class="action-btns">
+        <span style="font-weight:700;color:${c.total_baaki>0?'#dc2626':'#16a34a'};">Rs. ${c.total_baaki}</span>
+        <button class="wa-btn" onclick="sendReminder('${c.name.toLowerCase()}')" title="WhatsApp reminder">📱</button>
+        <button class="edit-btn" onclick="editCustomer('${c.name}','${c.phone}')">✏️</button>
+        <button class="del-btn" onclick="deleteCustomer('${c.name}')">🗑️</button>
+      </span>
+    </div>`).join('') || '<div style="padding:20px;color:#64748b;text-align:center;">Koi customer nahi mila</div>';
+  document.getElementById('grand-total').textContent = `Rs. ${list.reduce((s,c) => s + Number(c.total_baaki||0), 0)}`;
 }
 
 function viewCustomer(name) {
@@ -1804,6 +1868,44 @@ async function exportCSV(kind) {
     URL.revokeObjectURL(url);
     showToast(`⬇️ ${kind}.csv download ho gaya!`);
   } catch(e) { showToast('Export nahi hua','error'); }
+}
+
+// ---------------- Trash ----------------
+async function loadTrash() {
+  try {
+    const res = await apiFetch('/trash/khaata');
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    document.getElementById('trash-list').innerHTML = data.entries.map(e => `
+      <div class="entry-row">
+        <span style="font-weight:600;">${e.customer}</span>
+        <span>${e.item} <small style="color:#94a3b8;">x${e.quantity}</small></span>
+        <span style="font-weight:700;">Rs. ${e.total}</span>
+        <span style="color:#94a3b8;font-size:12px;">${new Date(e.deleted_at).toLocaleString('en-PK')}</span>
+        <span><button class="btn-primary" style="padding:4px 10px;font-size:13px;" onclick="restoreEntry(${e.id})">↩️ Restore</button></span>
+      </div>`).join('') || '<div style="padding:20px;color:#64748b;text-align:center;">Trash khali hai ✨</div>';
+  } catch(e) { showToast('Trash load nahi hua','error'); }
+}
+
+async function restoreEntry(id) {
+  try {
+    const res = await apiFetch(`/trash/restore/${id}`, {method:'POST'});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    showToast('↩️ Entry wapas aa gayi!');
+    loadTrash();
+  } catch(e) { showToast('Restore fail','error'); }
+}
+
+async function purgeOldTrash() {
+  if (!confirm('30 din se purani deleted entries permanently hat jayengi. Confirm?')) return;
+  try {
+    const res = await apiFetch('/trash/purge', {method:'DELETE'});
+    const data = await res.json();
+    if (data.error) { showToast(data.error,'error'); return; }
+    showToast(`🔥 ${data.purged} entries permanently delete ho gayin`);
+    loadTrash();
+  } catch(e) { showToast('Purge fail','error'); }
 }
 </script>
 </body>

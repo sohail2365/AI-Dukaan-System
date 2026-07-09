@@ -81,5 +81,12 @@ def setup_database():
                 created_at DATE DEFAULT CURRENT_DATE
             )
         """))
+        # ---- Non-destructive migrations (safe on existing DBs) ----
+        # Soft delete: khaata + purchases par deleted_at column
+        conn.execute(text("ALTER TABLE khaata ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP DEFAULT NULL"))
+        conn.execute(text("ALTER TABLE purchases ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP DEFAULT NULL"))
+        # Indexes for faster search + filtering
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_khaata_customer_deleted ON khaata(customer_id, deleted_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_customers_shop_name ON customers(shop_id, LOWER(name))"))
         conn.commit()
     print("Database ready! (PostgreSQL)")

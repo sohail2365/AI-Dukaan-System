@@ -1,10 +1,13 @@
-from fastapi import FastAPI, Header
+from fastapi import FastAPI, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from sqlalchemy import text
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from customers import add_khaata_entry, add_customer
 from inventory import (get_item_price, get_item_by_id, update_stock, update_stock_by_id,
                        update_stock_purchase, get_variants, add_item, get_all_items,
@@ -14,8 +17,14 @@ from database import setup_database, get_connection
 from auth import verify_token, register_shop, login_shop, reset_password
 from whatsapp import (build_whatsapp_payload, compose_entry_receipt,
                       compose_payment_receipt, compose_reminder, AUTO_SEND_ENABLED)
+from logger import get_logger
 
-app = FastAPI(title="Dukaan AI", version="1.0")
+log = get_logger("dukaan.server")
+
+limiter = Limiter(key_func=get_remote_address)
+app = FastAPI(title="Dukaan AI", version="1.1")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,11 +35,52 @@ app.add_middleware(
 
 setup_database()
 
+# ---- Friendly validation error handler ----
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    """Pydantic ke technical errors ko user-friendly Roman Urdu mein badal do."""
+    errors = exc.errors()
+    if errors:
+        first = errors[0]
+        msg = first.get("msg", "Input galat hai")
+        # Pydantic v2 "Value error, X" prefix hata do
+        if msg.startswith("Value error, "):
+            msg = msg[len("Value error, "):]
+        return JSONResponse(status_code=422, content={"error": msg})
+    return JSONResponse(status_code=422, content={"error": "Input galat hai"})
+
 # ---- Models ----
+def _clean_name(v: str, field: str = "Name") -> str:
+    if not v or not v.strip():
+        raise ValueError(f"{field} khali nahi ho sakta")
+    v = v.strip()
+    if len(v) > 100:
+        raise ValueError(f"{field} bahut lamba hai (max 100)")
+    return v
+
+def _clean_phone(v: str) -> str:
+    if not v:
+        return "unknown"
+    v = v.strip()
+    if v.lower() == "unknown" or v == "":
+        return "unknown"
+    # Digits, +, spaces, dashes allowed
+    digits = "".join(c for c in v if c.isdigit())
+    if len(digits) < 10:
+        raise ValueError("Phone number kam az kam 10 digits ka hona chahiye (ya 'unknown' likho)")
+    return v
+
 class AuthRequest(BaseModel):
     username: str
     password: str
     shop_name: str = ""
+
+    @field_validator("username")
+    @classmethod
+    def _u(cls, v): return v.strip().lower()
 
 class ResetRequest(BaseModel):
     username: str
@@ -55,12 +105,40 @@ class SingleEntrySaveRequest(BaseModel):
     manual_price: float = 0
     inventory_id: Optional[int] = None
 
+    @field_validator("quantity")
+    @classmethod
+    def _q(cls, v):
+        if v <= 0:
+            raise ValueError("Quantity 0 se zyada honi chahiye")
+        if v > 100000:
+            raise ValueError("Quantity itni zyada nahi ho sakti (max 100000)")
+        return v
+
+    @field_validator("price")
+    @classmethod
+    def _p(cls, v):
+        # 0 valid hai kyunki payment mein price alag handle hoti hai (negative bhi)
+        if abs(v) > 100000000:
+            raise ValueError("Price bahut zyada hai")
+        return v
+
 class MultiItemSave(BaseModel):
     item: str
     quantity: float
     price: float
     inventory_id: Optional[int] = None
     found: bool = False
+
+    @field_validator("item")
+    @classmethod
+    def _i(cls, v): return _clean_name(v, "Item")
+
+    @field_validator("quantity")
+    @classmethod
+    def _q(cls, v):
+        if v <= 0:
+            raise ValueError("Quantity 0 se zyada honi chahiye")
+        return v
 
 class MultiEntrySaveRequest(BaseModel):
     text: str = ""
@@ -72,10 +150,26 @@ class CustomerRequest(BaseModel):
     name: str
     phone: str
 
+    @field_validator("name")
+    @classmethod
+    def _n(cls, v): return _clean_name(v, "Customer name")
+
+    @field_validator("phone")
+    @classmethod
+    def _ph(cls, v): return _clean_phone(v)
+
 class CustomerEditRequest(BaseModel):
     old_name: str
     new_name: str
     new_phone: str
+
+    @field_validator("new_name")
+    @classmethod
+    def _n(cls, v): return _clean_name(v, "Customer name")
+
+    @field_validator("new_phone")
+    @classmethod
+    def _ph(cls, v): return _clean_phone(v)
 
 class EntryEditRequest(BaseModel):
     entry_id: int
@@ -129,7 +223,7 @@ def get_customer_phone_and_baaki(customer_name: str, shop_id: int):
             text("""
                 SELECT c.customer_id, c.phone, COALESCE(SUM(k.total), 0)
                 FROM customers c
-                LEFT JOIN khaata k ON k.customer_id = c.customer_id
+                LEFT JOIN khaata k ON k.customer_id = c.customer_id AND k.deleted_at IS NULL
                 WHERE LOWER(c.name) = :name AND c.shop_id = :shop_id
                 GROUP BY c.customer_id, c.phone
             """),
@@ -159,18 +253,36 @@ def serve_ui():
 
 # ---- Auth ----
 @app.post("/auth/register")
-def register(req: AuthRequest):
+@limiter.limit("5/hour")
+def register(request: Request, req: AuthRequest):
     if not req.shop_name:
         return {"error": "Shop name zaroori hai"}
-    return register_shop(req.username, req.password, req.shop_name)
+    result = register_shop(req.username, req.password, req.shop_name)
+    if result.get("success"):
+        log.info(f"Register success: {req.username} from {get_remote_address(request)}")
+    else:
+        log.warning(f"Register failed: {req.username} — {result.get('error')}")
+    return result
 
 @app.post("/auth/login")
-def login(req: AuthRequest):
-    return login_shop(req.username, req.password)
+@limiter.limit("10/minute")
+def login(request: Request, req: AuthRequest):
+    result = login_shop(req.username, req.password)
+    if result.get("success"):
+        log.info(f"Login success: {req.username}")
+    else:
+        log.warning(f"Login failed: {req.username} from {get_remote_address(request)}")
+    return result
 
 @app.post("/auth/reset-password")
-def reset_pwd(req: ResetRequest):
-    return reset_password(req.username, req.shop_name, req.new_password)
+@limiter.limit("3/hour")
+def reset_pwd(request: Request, req: ResetRequest):
+    result = reset_password(req.username, req.shop_name, req.new_password)
+    if result.get("success"):
+        log.info(f"Password reset: {req.username}")
+    else:
+        log.warning(f"Password reset failed: {req.username} from {get_remote_address(request)}")
+    return result
 
 # ---- Entry ----
 @app.post("/entry/parse")
@@ -182,7 +294,7 @@ def parse_natural_entry(req: EntryRequest, authorization: Optional[str] = Header
     data = parse_entry(req.text)
     if not data:
         return {"error": "AI parse nahi kar saka"}
-    print(f"AI parsed: {data}")
+    log.debug(f"AI parsed: {data}")
 
     if not data.get("price"):
         item = data.get("item", "")
@@ -239,7 +351,7 @@ def save_entry(req: SingleEntrySaveRequest, authorization: Optional[str] = Heade
                 {"cid": customer[0], "price": data["price"], "neg_price": -data["price"]}
             )
             conn.commit()
-        print(f"Payment saved: {data['customer'].title()} - Rs. {data['price']}")
+        log.info(f"Payment: {data['customer']} Rs.{data['price']} shop={shop_id}")
         phone, baaki = get_customer_phone_and_baaki(data["customer"], shop_id)
         wa_msg = compose_payment_receipt(get_shop_name(shop_id), data["customer"], data["price"], baaki)
         return {"success": True, "type": "payment", "data": data,
@@ -332,11 +444,12 @@ def delete_entry(entry_id: int, authorization: Optional[str] = Header(None)):
             return {"error": f"Entry #{entry_id} nahi mili"}
         conn.execute(
             text("""
-                DELETE FROM khaata
+                UPDATE khaata SET deleted_at = NOW()
                 WHERE id = :eid AND customer_id IN (SELECT customer_id FROM customers WHERE shop_id = :shop_id)
             """),
             {"eid": entry_id, "shop_id": shop_id}
         )
+        log.info(f"Entry soft-deleted: id={entry_id}, shop={shop_id}")
         conn.commit()
     return {"success": True}
 
@@ -356,12 +469,12 @@ def get_khaata(customer_name: str, authorization: Optional[str] = Header(None)):
         rows = conn.execute(
             text("""
                 SELECT id, date, item_name, quantity, price_per_item, total
-                FROM khaata WHERE customer_id = :cid ORDER BY date ASC
+                FROM khaata WHERE customer_id = :cid AND deleted_at IS NULL ORDER BY date ASC
             """),
             {"cid": customer[0]}
         ).fetchall()
         total = conn.execute(
-            text("SELECT SUM(total) FROM khaata WHERE customer_id = :cid"),
+            text("SELECT SUM(total) FROM khaata WHERE customer_id = :cid AND deleted_at IS NULL"),
             {"cid": customer[0]}
         ).fetchone()[0] or 0
     return {
@@ -413,7 +526,7 @@ def delete_customer(customer_name: str, authorization: Optional[str] = Header(No
     if not customer:
         return {"error": f"'{customer_name}' nahi mila"}
     with get_connection() as conn:
-        conn.execute(text("DELETE FROM khaata WHERE customer_id = :cid"), {"cid": customer[0]})
+        conn.execute(text("UPDATE khaata SET deleted_at = NOW() WHERE customer_id = :cid AND deleted_at IS NULL"), {"cid": customer[0]})
         conn.execute(
             text("DELETE FROM customers WHERE customer_id = :cid AND shop_id = :shop_id"),
             {"cid": customer[0], "shop_id": shop_id}
@@ -433,7 +546,7 @@ def all_customers(authorization: Optional[str] = Header(None)):
                        COALESCE(SUM(k.total), 0) as total_baaki,
                        COUNT(k.id) as total_entries
                 FROM customers c
-                LEFT JOIN khaata k ON c.customer_id = k.customer_id
+                LEFT JOIN khaata k ON c.customer_id = k.customer_id AND k.deleted_at IS NULL
                 WHERE c.shop_id = :shop_id
                 GROUP BY c.customer_id, c.name, c.phone ORDER BY total_baaki DESC
             """),
@@ -513,7 +626,7 @@ def parse_purchase_entry(req: PurchaseRequest, authorization: Optional[str] = He
         data["auto_divided"] = True
     else:
         data["auto_divided"] = False
-    print(f"Purchase parsed: {data}")
+    log.debug(f"Purchase parsed: {data}")
     inv_item = get_item_price(data.get("item", ""), shop_id)
     if inv_item:
         data["found_in_sheet"] = True
@@ -550,7 +663,7 @@ def save_purchase(req: PurchaseRequest, authorization: Optional[str] = Header(No
         )
         conn.commit()
     update_stock_purchase(data["item"], data["quantity"], shop_id)
-    print(f"Purchase saved: {data['item']} x{data['quantity']} @ Rs.{data['rate']} = Rs.{total_cost}")
+    log.info(f"Purchase: {data['item']} x{data['quantity']} Rs.{total_cost} shop={shop_id}")
     return {"success": True, "data": data, "total_cost": total_cost}
 
 @app.put("/purchase/edit")
@@ -726,7 +839,7 @@ def save_multi(req: MultiEntrySaveRequest, authorization: Optional[str] = Header
             })
 
     grand_total = round(sum(i["total"] for i in saved_items), 2)
-    print(f"Multi-entry saved: {customer_name} - {len(saved_items)} items - Rs. {grand_total}")
+    log.info(f"Multi-entry: {customer_name} {len(saved_items)} items Rs.{grand_total} shop={shop_id}")
 
     whatsapp = None
     if saved_items:
@@ -807,7 +920,7 @@ def whatsapp_bulk_reminders(req: BulkReminderRequest, authorization: Optional[st
             text("""
                 SELECT c.name, c.phone, COALESCE(SUM(k.total), 0) as baaki
                 FROM customers c
-                LEFT JOIN khaata k ON k.customer_id = c.customer_id
+                LEFT JOIN khaata k ON k.customer_id = c.customer_id AND k.deleted_at IS NULL
                 WHERE c.shop_id = :shop_id
                 GROUP BY c.customer_id, c.name, c.phone
                 HAVING COALESCE(SUM(k.total), 0) >= :min_baaki
@@ -841,36 +954,36 @@ def reports_dashboard(authorization: Optional[str] = Header(None)):
         today_sale = conn.execute(text("""
             SELECT COALESCE(SUM(k.total), 0) FROM khaata k
             JOIN customers c ON c.customer_id = k.customer_id
-            WHERE c.shop_id = :sid AND k.date = CURRENT_DATE AND k.item_name != 'PAYMENT'
+            WHERE c.shop_id = :sid AND k.date = CURRENT_DATE AND k.item_name != 'PAYMENT' AND k.deleted_at IS NULL
         """), {"sid": shop_id}).fetchone()[0]
         today_payments = conn.execute(text("""
             SELECT COALESCE(SUM(-k.total), 0) FROM khaata k
             JOIN customers c ON c.customer_id = k.customer_id
-            WHERE c.shop_id = :sid AND k.date = CURRENT_DATE AND k.item_name = 'PAYMENT'
+            WHERE c.shop_id = :sid AND k.date = CURRENT_DATE AND k.item_name = 'PAYMENT' AND k.deleted_at IS NULL
         """), {"sid": shop_id}).fetchone()[0]
         month_sale = conn.execute(text("""
             SELECT COALESCE(SUM(k.total), 0) FROM khaata k
             JOIN customers c ON c.customer_id = k.customer_id
             WHERE c.shop_id = :sid AND k.date >= date_trunc('month', CURRENT_DATE)
-              AND k.item_name != 'PAYMENT'
+              AND k.item_name != 'PAYMENT' AND k.deleted_at IS NULL
         """), {"sid": shop_id}).fetchone()[0]
         month_payments = conn.execute(text("""
             SELECT COALESCE(SUM(-k.total), 0) FROM khaata k
             JOIN customers c ON c.customer_id = k.customer_id
             WHERE c.shop_id = :sid AND k.date >= date_trunc('month', CURRENT_DATE)
-              AND k.item_name = 'PAYMENT'
+              AND k.item_name = 'PAYMENT' AND k.deleted_at IS NULL
         """), {"sid": shop_id}).fetchone()[0]
         total_baaki = conn.execute(text("""
             SELECT COALESCE(SUM(k.total), 0) FROM khaata k
             JOIN customers c ON c.customer_id = k.customer_id
-            WHERE c.shop_id = :sid
+            WHERE c.shop_id = :sid AND k.deleted_at IS NULL
         """), {"sid": shop_id}).fetchone()[0]
         customer_count = conn.execute(
             text("SELECT COUNT(*) FROM customers WHERE shop_id = :sid"),
             {"sid": shop_id}).fetchone()[0]
         top_baaki = conn.execute(text("""
             SELECT c.name, c.phone, COALESCE(SUM(k.total), 0) as baaki
-            FROM customers c LEFT JOIN khaata k ON k.customer_id = c.customer_id
+            FROM customers c LEFT JOIN khaata k ON k.customer_id = c.customer_id AND k.deleted_at IS NULL
             WHERE c.shop_id = :sid
             GROUP BY c.customer_id, c.name, c.phone
             HAVING COALESCE(SUM(k.total), 0) > 0
@@ -920,7 +1033,7 @@ def export_customers(authorization: Optional[str] = Header(None)):
     with get_connection() as conn:
         rows = conn.execute(text("""
             SELECT c.name, c.phone, COALESCE(SUM(k.total), 0), COUNT(k.id)
-            FROM customers c LEFT JOIN khaata k ON k.customer_id = c.customer_id
+            FROM customers c LEFT JOIN khaata k ON k.customer_id = c.customer_id AND k.deleted_at IS NULL
             WHERE c.shop_id = :sid
             GROUP BY c.customer_id, c.name, c.phone ORDER BY c.name
         """), {"sid": shop_id}).fetchall()
@@ -937,7 +1050,7 @@ def export_khaata(authorization: Optional[str] = Header(None)):
         rows = conn.execute(text("""
             SELECT c.name, k.date, k.item_name, k.quantity, k.price_per_item, k.total
             FROM khaata k JOIN customers c ON c.customer_id = k.customer_id
-            WHERE c.shop_id = :sid ORDER BY c.name, k.date
+            WHERE c.shop_id = :sid AND k.deleted_at IS NULL ORDER BY c.name, k.date
         """), {"sid": shop_id}).fetchall()
     return _csv_response(
         [(r[0].title(), str(r[1]), r[2].title(), r[3], r[4], r[5]) for r in rows],
@@ -957,3 +1070,65 @@ def export_inventory(authorization: Optional[str] = Header(None)):
         [(r[0].title(), r[1], r[2], r[3], r[4], r[5]) for r in rows],
         ["Item", "Category", "Sale Price", "Purchase Rate", "Stock", "Reorder Level"],
         "inventory.csv")
+
+# ---- Trash (soft-deleted entries) ----
+@app.get("/trash/khaata")
+def trash_khaata(authorization: Optional[str] = Header(None)):
+    """Last 30 days ke deleted entries — restore ho sakti hain."""
+    shop_id = get_shop_id(authorization)
+    if not shop_id:
+        return {"error": "Login zaroori hai"}
+    with get_connection() as conn:
+        rows = conn.execute(text("""
+            SELECT k.id, c.name, k.date, k.item_name, k.quantity, k.price_per_item, k.total, k.deleted_at
+            FROM khaata k JOIN customers c ON c.customer_id = k.customer_id
+            WHERE c.shop_id = :sid AND k.deleted_at IS NOT NULL
+              AND k.deleted_at >= NOW() - INTERVAL '30 days'
+            ORDER BY k.deleted_at DESC
+            LIMIT 200
+        """), {"sid": shop_id}).fetchall()
+    return {
+        "entries": [
+            {"id": r[0], "customer": r[1].title(), "date": str(r[2]),
+             "item": r[3].title(), "quantity": r[4], "price": r[5], "total": r[6],
+             "deleted_at": str(r[7])}
+            for r in rows
+        ],
+        "count": len(rows)
+    }
+
+@app.post("/trash/restore/{entry_id}")
+def trash_restore(entry_id: int, authorization: Optional[str] = Header(None)):
+    shop_id = get_shop_id(authorization)
+    if not shop_id:
+        return {"error": "Login zaroori hai"}
+    with get_connection() as conn:
+        result = conn.execute(text("""
+            UPDATE khaata SET deleted_at = NULL
+            WHERE id = :eid AND customer_id IN (SELECT customer_id FROM customers WHERE shop_id = :sid)
+              AND deleted_at IS NOT NULL
+            RETURNING id
+        """), {"eid": entry_id, "sid": shop_id}).fetchone()
+        conn.commit()
+    if not result:
+        return {"error": f"Entry #{entry_id} trash mein nahi mili"}
+    log.info(f"Entry restored: id={entry_id}, shop={shop_id}")
+    return {"success": True, "id": entry_id}
+
+@app.delete("/trash/purge")
+def trash_purge(authorization: Optional[str] = Header(None)):
+    """30+ din purani deleted entries permanently hata do. Frontend se
+    manually trigger hoti hai — user ko dikhata hai kitni entries hatengi."""
+    shop_id = get_shop_id(authorization)
+    if not shop_id:
+        return {"error": "Login zaroori hai"}
+    with get_connection() as conn:
+        result = conn.execute(text("""
+            DELETE FROM khaata
+            WHERE customer_id IN (SELECT customer_id FROM customers WHERE shop_id = :sid)
+              AND deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days'
+            RETURNING id
+        """), {"sid": shop_id}).fetchall()
+        conn.commit()
+    log.info(f"Trash purged: {len(result)} entries, shop={shop_id}")
+    return {"success": True, "purged": len(result)}

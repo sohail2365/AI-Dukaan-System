@@ -6,3 +6,4 @@ groq
 python-jose[cryptography]
 SQLAlchemy
 psycopg2-binary
+slowapi

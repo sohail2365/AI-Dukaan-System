@@ -1,6 +1,9 @@
 # inventory.py — PostgreSQL version
 from sqlalchemy import text
 from database import get_connection
+from logger import get_logger
+
+log = get_logger("dukaan.inventory")
 
 def get_item_price(item_name: str, shop_id: int):
     try:
@@ -42,7 +45,7 @@ def get_item_price(item_name: str, shop_id: int):
 
         return None
     except Exception as e:
-        print(f"Inventory error: {e}")
+        log.error(f"Inventory error: {e}")
         return None
 
 def get_variants(keyword: str, shop_id: int) -> list:
@@ -69,7 +72,7 @@ def get_variants(keyword: str, shop_id: int) -> list:
 
         return [{"id": r[0], "name": r[1], "price": r[2], "stock": int(r[3])} for r in rows]
     except Exception as e:
-        print(f"Variants error: {e}")
+        log.error(f"Variants error: {e}")
         return []
 
 def get_item_by_id(item_id: int, shop_id: int):
@@ -131,7 +134,7 @@ def update_stock(item_name: str, quantity_sold: float, shop_id: int) -> bool:
                         break
 
             if not row:
-                print(f"Item nahi mila: {item_name}")
+                log.debug("Item nahi mila")
                 return False
 
             new_stock = row[1] - quantity_sold
