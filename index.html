@@ -513,14 +513,10 @@ button:disabled{background:#94a3b8;cursor:not-allowed;}
         </div>
         <div class="card">
           <div class="input-row">
-            <input type="text" id="inv-input" placeholder="Item naam likho..." onkeydown="if(event.key==='Enter')checkInventory()">
+            <input type="text" id="inv-input" placeholder="Item naam likho... (jaise 'lays' ya 'coke')" onkeydown="if(event.key==='Enter')checkInventory()">
             <button onclick="checkInventory()">Check karo</button>
           </div>
-          <div class="result-box" id="inv-result">
-            <div class="parsed-row"><span class="lbl">Item</span><span class="val" id="inv-name">—</span></div>
-            <div class="parsed-row"><span class="lbl">Sale Price</span><span class="val" id="inv-price">—</span></div>
-            <div class="parsed-row"><span class="lbl">Stock</span><span class="val" id="inv-stock">—</span></div>
-          </div>
+          <div id="inv-result-container" style="margin-top:16px;"></div>
         </div>
       </div>
 
@@ -1514,17 +1510,41 @@ async function saveEntryEdit() {
 
 // ---- Inventory Check ----
 async function checkInventory() {
-  const item=document.getElementById('inv-input').value.trim();
-  if(!item)return;
+  const item = document.getElementById('inv-input').value.trim();
+  if (!item) return;
+  const container = document.getElementById('inv-result-container');
+  container.innerHTML = '<div style="text-align:center;color:#64748b;padding:20px;">Dhoond raha hoon...</div>';
   try {
-    const res=await apiFetch(`/inventory/${item}`);
-    const data=await res.json();
-    if(data.error){showToast(data.error,'error');return;}
-    document.getElementById('inv-name').textContent=data.name;
-    document.getElementById('inv-price').textContent=`Rs. ${data.price}`;
-    document.getElementById('inv-stock').innerHTML=`<span class="badge ${data.stock>0?'badge-green':'badge-red'}">${data.stock>0?data.stock+' baaki':'Out of stock'}</span>`;
-    document.getElementById('inv-result').classList.add('show');
-  } catch(e){showToast('Server error','error');}
+    const res = await apiFetch(`/inventory/${encodeURIComponent(item)}`);
+    const data = await res.json();
+    if (data.error) {
+      container.innerHTML = `<div style="text-align:center;color:#dc2626;padding:20px;">❌ ${data.error}</div>`;
+      return;
+    }
+    const variants = data.variants || [];
+    const countLabel = variants.length === 1
+      ? '<b>1 item</b> mila'
+      : `<b>${variants.length} variants</b> mile — sab dekho:`;
+    const rows = variants.map(v => {
+      const stockBadge = v.stock > 0
+        ? `<span class="badge badge-green">${v.stock} baaki</span>`
+        : `<span class="badge badge-red">Out of stock</span>`;
+      return `
+        <div class="entry-row" style="cursor:default;">
+          <span style="font-weight:600;">${v.name}</span>
+          <span style="color:#16a34a;font-weight:700;">Rs. ${v.price}</span>
+          <span>${stockBadge}</span>
+        </div>`;
+    }).join('');
+    container.innerHTML = `
+      <div style="font-size:13px;color:#64748b;margin-bottom:8px;">${countLabel}</div>
+      <div class="entry-row entry-header">
+        <span>Item</span><span>Sale Price</span><span>Stock</span>
+      </div>
+      ${rows}`;
+  } catch(e) {
+    container.innerHTML = '<div style="text-align:center;color:#dc2626;padding:20px;">Server error</div>';
+  }
 }
 
 // ---- Inventory Management ----

@@ -613,10 +613,20 @@ def check_inventory(item_name: str, authorization: Optional[str] = Header(None))
     shop_id = get_shop_id(authorization)
     if not shop_id:
         return {"error": "Login zaroori hai"}
-    result = get_item_price(item_name, shop_id)
-    if result:
-        return result
-    return {"error": f"{item_name} inventory mein nahi mila"}
+    # Pehle sab variants dhundo — agar multiple mile toh sab wapas karo,
+    # ek hi ho toh usko convenience ke liye "match" field mein bhi rakh do
+    variants = get_variants(item_name, shop_id)
+    if not variants:
+        # Fallback: fuzzy single lookup
+        result = get_item_price(item_name, shop_id)
+        if result:
+            return {"variants": [result], "count": 1, "match": result}
+        return {"error": f"{item_name} inventory mein nahi mila"}
+    return {
+        "variants": variants,
+        "count": len(variants),
+        "match": variants[0] if len(variants) == 1 else None,
+    }
 
 # ---- Purchase ----
 @app.post("/purchase/parse")
