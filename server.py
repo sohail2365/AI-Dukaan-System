@@ -525,13 +525,19 @@ def delete_customer(customer_name: str, authorization: Optional[str] = Header(No
     customer = get_customer(customer_name, shop_id)
     if not customer:
         return {"error": f"'{customer_name}' nahi mila"}
+    # Whole customer delete = permanent (confirm dialog already warns user).
+    # Hard delete khaata (active + trashed both) to avoid FK constraint issue.
     with get_connection() as conn:
-        conn.execute(text("UPDATE khaata SET deleted_at = NOW() WHERE customer_id = :cid AND deleted_at IS NULL"), {"cid": customer[0]})
+        deleted = conn.execute(
+            text("DELETE FROM khaata WHERE customer_id = :cid"),
+            {"cid": customer[0]}
+        )
         conn.execute(
             text("DELETE FROM customers WHERE customer_id = :cid AND shop_id = :shop_id"),
             {"cid": customer[0], "shop_id": shop_id}
         )
         conn.commit()
+    log.info(f"Customer deleted: {customer_name} (shop={shop_id}, khaata rows removed)")
     return {"success": True}
 
 @app.get("/customers/all")
